@@ -1,0 +1,12 @@
+#!/usr/bin/bash
+
+/usr/lib/jvm/java-8-openjdk-amd64/bin/java -XX:+PreserveFramePointer -XX:+UnlockDiagnosticVMOptions -XX:+DebugNonSafepoints startPerf &
+
+PID=$(pgrep -f startPerf)
+
+cd ../perf-map-agent
+./bin/create-java-perf-map.sh $PID
+
+cd ../perf
+
+sudo perf record -F 120 -p $PID -ag

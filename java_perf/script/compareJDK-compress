@@ -1,0 +1,40 @@
+#!/usr/bin/bash
+
+commands=("/usr/lib/jvm/java-8-openjdk-amd64/bin/java -jar SPECjvm2008.jar -ikv compress" "/usr/lib/jvm/dragonwell-8.19.20/bin/java -jar SPECjvm2008.jar -ikv compress"
+	  "/usr/lib/jvm/TencentKona-8.0.18-412/bin/java -jar SPECjvm2008.jar -ikv compress" "/usr/lib/jvm/bisheng-jdk1.8.0_412/bin/java -jar SPECjvm2008.jar -ikv compress")
+
+# 注意：数组定义时，元素之间不能有逗号
+jdks=("openjdk" "dragonwell" "kona" "bisheng")
+
+touch "tmp"
+touch "info"
+cd ../SPECjvm2008 || exit 1
+tmp_path="../script/tmp"
+info_path="../script/info"
+len=${#commands[@]}
+
+for ((i = 1; i <= 6; i++)); do
+    for ((j = 0; j < $len; j++)); do
+        # 执行命令并用正则表达式识别结果并存储在文件中
+        eval "${commands[j]}" > "$tmp_path"
+        line=$(grep "Noncompliant composite result:" "$tmp_path")
+        result=$(echo "$line" | awk -F'[ :]+' '{print $4}')
+	
+	cat "$tmp_path" >> "$info_path"
+	echo "${jdks[j]}_${i}: $result\n"
+
+        if [ -e "../script/${jdks[j]}" ]; then
+            echo "$result" >> "../script/${jdks[j]}"
+        else 
+            touch "../script/${jdks[j]}"
+            echo "$result" >> "../script/${jdks[j]}"
+        fi
+
+        # 进入results文件夹并修改报告名称
+        cd ./results || exit 1
+        mv SPECjvm2008.001 "${jdks[j]}_$i" 2>/dev/null
+        cd ..
+    done
+done
+
+rm tmp

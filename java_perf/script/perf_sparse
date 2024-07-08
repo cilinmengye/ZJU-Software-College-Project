@@ -1,0 +1,22 @@
+#!/usr/bin/bash
+cd /home/cilinmengye/java_perf/SPECjvm2008
+
+/usr/lib/jvm/java-8-openjdk-amd64/bin/java -XX:+PreserveFramePointer -XX:+UnlockDiagnosticVMOptions -XX:+DebugNonSafepoints -jar SPECjvm2008.jar -ikv -i 2 scimark.sparse.large &
+
+PID=$(pgrep -f SPECjvm2008.jar)
+
+cd ../perf-map-agent
+./bin/create-java-perf-map.sh $PID
+
+cd ../perf
+
+sudo perf record -F 99 -p $PID -ag -- sleep 720
+
+sudo perf script > ./second_sparse/out.perf
+
+# 生成火焰图
+../FlameGraph/stackcollapse-perf.pl ./second_sparse/out.perf > ./second_sparse/out.folded
+../FlameGraph/flamegraph.pl ./second_sparse/out.folded > ./second_sparse/flamegraph.svg
+
+# 打开火焰图（使用默认浏览器）
+# xdg-open flamegraph.svg

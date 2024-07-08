@@ -1,0 +1,53 @@
+
+SPECjvm2008 Base
+  Properties file:   none
+  Benchmarks:        compress
+
+  WARNING: Run will not be compliant.
+  Not a compliant sequence of benchmarks for publication.
+  Property specjvm.run.checksum.validation must be true for publication.
+
+
+--- --- --- --- --- --- --- --- ---
+
+  Benchmark:   check
+  Run mode:    static run
+  Test type:   functional
+  Threads:     1
+  Iterations:  1
+  Run length:  1 operation
+
+Iteration 1 (1 operation) begins: Fri Jul 05 21:58:37 CST 2024
+Iteration 1 (1 operation) ends:   Fri Jul 05 21:58:37 CST 2024
+Iteration 1 (1 operation) result: PASSED
+
+Valid run!
+
+
+--- --- --- --- --- --- --- --- ---
+
+  Benchmark:   compress
+  Run mode:    timed run
+  Test type:   multi
+  Threads:     4
+  Warmup:      120s
+  Iterations:  1
+  Run length:  240s
+
+Warmup (120s) begins: Fri Jul 05 21:58:37 CST 2024
+Warmup (120s) ends:   Fri Jul 05 22:00:40 CST 2024
+Warmup (120s) result: 149.19 ops/m
+
+Iteration 1 (240s) begins: Fri Jul 05 22:00:40 CST 2024
+Iteration 1 (240s) ends:   Fri Jul 05 22:04:42 CST 2024
+Iteration 1 (240s) result: 152.38 ops/m
+
+Valid run!
+Score on compress: 152.38 ops/m
+
+Results are stored in: 
+/home/cilinmengye/java_perf/SPECjvm2008/results/SPECjvm2008.001/SPECjvm2008.001.raw
+Generating reports in:
+/home/cilinmengye/java_perf/SPECjvm2008/results/SPECjvm2008.001
+
+Noncompliant composite result: 152.38 ops/m

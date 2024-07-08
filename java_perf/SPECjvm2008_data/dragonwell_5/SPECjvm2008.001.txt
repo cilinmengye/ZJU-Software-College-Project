@@ -1,0 +1,80 @@
+================================
+SPECjvm2008 Base
+================================
+n/a n/a
+Alibaba OpenJDK 64-Bit Server VM
+Tested by: n/a Test date: Fri Jul 05 21:21:59 CST 2024
+Run is valid, but not compliant
+
+================================
+compress                      157.42                                  
+Noncompliant composite result: 157.42 ops/m
+================================
+
+
+Submitter                     n/a                                     
+Submitter URL                 n/a                                     
+SPEC license                  n/a                                     
+Tester                        cilinmengye                             
+Location                      n/a                                     
+Test date:                    Fri Jul 05 21:21:59 CST 2024            
+OS name                       Linux                                   
+OS available                  n/a                                     
+OS address bits               n/a                                     
+OS tuning                                                             
+Filesystem                    n/a                                     
+Other s/w name                                                        
+Other s/w tuning                                                      
+Other s/w available                                                   
+Vendor                        Alibaba                                 
+Vendor URL                    http://www.alibabagroup.com             
+JVM name                      OpenJDK 64-Bit Server VM                
+JVM version                   25.412-b01 mixed mode                   
+JVM available                 n/a                                     
+Java Specification            1.8                                     
+JVM address bits              64                                      
+JVM initial heap memory       n/a                                     
+JVM maximum heap memory       n/a                                     
+JVM command line              n/a                                     
+JVM command line startup                                              
+JVM launcher startup          default                                 
+Additional JVM tuning                                                 
+JVM class path                SPECjvm2008.jar                         
+JVM boot class path           /usr/lib/jvm/dragonwell-8.19.20/jre/lib/resources.jar:/usr/lib/jvm/dragonwell-8.19.20/jre/lib/rt.jar:/usr/lib/jvm/dragonwell-8.19.20/jre/lib/sunrsasign.jar:/usr/lib/jvm/dragonwell-8.19.20/jre/lib/jsse.jar:/usr/lib/jvm/dragonwell-8.19.20/jre/lib/jce.jar:/usr/lib/jvm/dragonwell-8.19.20/jre/lib/charsets.jar:/usr/lib/jvm/dragonwell-8.19.20/jre/lib/jfr.jar:/usr/lib/jvm/dragonwell-8.19.20/jre/classes
+HW vendor                     n/a                                     
+HW vendor's URL               n/a                                     
+HW model                      n/a                                     
+HW available                  n/a                                     
+CPU vendor                    n/a                                     
+CPU vendor's URL              n/a                                     
+CPU name                      n/a                                     
+CPU frequency                 n/a                                     
+# of logical cpus             n/a                                     
+# of chips                    n/a                                     
+# of cores                    n/a                                     
+Cores per chip                n/a                                     
+Threads per core              n/a                                     
+Threading enabled             n/a                                     
+HW address bits               n/a                                     
+Primary cache                 n/a                                     
+Secondary cache               n/a                                     
+Other cache                   n/a                                     
+Memory size                   n/a                                     
+Memory details                n/a                                     
+Other HW details              n/a                                     
+
+Not a compliant sequence of benchmarks for publication.
+Property specjvm.run.checksum.validation must be true for publication.
+
+Details of Runs
+---------------
+PASSED
+
+Benchmark                     Iteration      Expected(ms)   Actual(ms)     Operations     ops/m          
+---------------------------------------------------------------------------------------------------
+
+compress                      warmup         120000         120000         312.38         156.19         
+compress                      iteration 1    240000         240000         629.68         157.42         
+
+SPECjvm2008 Version: [SPECjvm2008 1.01 (20090519)]
+Copyright (C) 2008-2024 SPEC. All rights reserved

@@ -1,0 +1,1385 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" width="1200" height="470" onload="init(evt)" viewBox="0 0 1200 470" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<!-- Flame graph stack visualization. See https://github.com/brendangregg/FlameGraph for latest version, and http://www.brendangregg.com/flamegraphs.html for examples. -->
+<!-- NOTES:  -->
+<defs>
+	<linearGradient id="background" y1="0" y2="1" x1="0" x2="0" >
+		<stop stop-color="#eeeeee" offset="5%" />
+		<stop stop-color="#eeeeb0" offset="95%" />
+	</linearGradient>
+</defs>
+<style type="text/css">
+	text { font-family:Verdana; font-size:12px; fill:rgb(0,0,0); }
+	#search, #ignorecase { opacity:0.1; cursor:pointer; }
+	#search:hover, #search.show, #ignorecase:hover, #ignorecase.show { opacity:1; }
+	#subtitle { text-anchor:middle; font-color:rgb(160,160,160); }
+	#title { text-anchor:middle; font-size:17px}
+	#unzoom { cursor:pointer; }
+	#frames > *:hover { stroke:black; stroke-width:0.5; cursor:pointer; }
+	.hide { display:none; }
+	.parent { opacity:0.5; }
+</style>
+<script type="text/ecmascript">
+<![CDATA[
+	"use strict";
+	var details, searchbtn, unzoombtn, matchedtxt, svg, searching, currentSearchTerm, ignorecase, ignorecaseBtn;
+	function init(evt) {
+		details = document.getElementById("details").firstChild;
+		searchbtn = document.getElementById("search");
+		ignorecaseBtn = document.getElementById("ignorecase");
+		unzoombtn = document.getElementById("unzoom");
+		matchedtxt = document.getElementById("matched");
+		svg = document.getElementsByTagName("svg")[0];
+		searching = 0;
+		currentSearchTerm = null;
+
+		// use GET parameters to restore a flamegraphs state.
+		var params = get_params();
+		if (params.x && params.y)
+			zoom(find_group(document.querySelector('[x="' + params.x + '"][y="' + params.y + '"]')));
+                if (params.s) search(params.s);
+	}
+
+	// event listeners
+	window.addEventListener("click", function(e) {
+		var target = find_group(e.target);
+		if (target) {
+			if (target.nodeName == "a") {
+				if (e.ctrlKey === false) return;
+				e.preventDefault();
+			}
+			if (target.classList.contains("parent")) unzoom(true);
+			zoom(target);
+			if (!document.querySelector('.parent')) {
+				// we have basically done a clearzoom so clear the url
+				var params = get_params();
+				if (params.x) delete params.x;
+				if (params.y) delete params.y;
+				history.replaceState(null, null, parse_params(params));
+				unzoombtn.classList.add("hide");
+				return;
+			}
+
+			// set parameters for zoom state
+			var el = target.querySelector("rect");
+			if (el && el.attributes && el.attributes.y && el.attributes._orig_x) {
+				var params = get_params()
+				params.x = el.attributes._orig_x.value;
+				params.y = el.attributes.y.value;
+				history.replaceState(null, null, parse_params(params));
+			}
+		}
+		else if (e.target.id == "unzoom") clearzoom();
+		else if (e.target.id == "search") search_prompt();
+		else if (e.target.id == "ignorecase") toggle_ignorecase();
+	}, false)
+
+	// mouse-over for info
+	// show
+	window.addEventListener("mouseover", function(e) {
+		var target = find_group(e.target);
+		if (target) details.nodeValue = "Function: " + g_to_text(target);
+	}, false)
+
+	// clear
+	window.addEventListener("mouseout", function(e) {
+		var target = find_group(e.target);
+		if (target) details.nodeValue = ' ';
+	}, false)
+
+	// ctrl-F for search
+	// ctrl-I to toggle case-sensitive search
+	window.addEventListener("keydown",function (e) {
+		if (e.keyCode === 114 || (e.ctrlKey && e.keyCode === 70)) {
+			e.preventDefault();
+			search_prompt();
+		}
+		else if (e.ctrlKey && e.keyCode === 73) {
+			e.preventDefault();
+			toggle_ignorecase();
+		}
+	}, false)
+
+	// functions
+	function get_params() {
+		var params = {};
+		var paramsarr = window.location.search.substr(1).split('&');
+		for (var i = 0; i < paramsarr.length; ++i) {
+			var tmp = paramsarr[i].split("=");
+			if (!tmp[0] || !tmp[1]) continue;
+			params[tmp[0]]  = decodeURIComponent(tmp[1]);
+		}
+		return params;
+	}
+	function parse_params(params) {
+		var uri = "?";
+		for (var key in params) {
+			uri += key + '=' + encodeURIComponent(params[key]) + '&';
+		}
+		if (uri.slice(-1) == "&")
+			uri = uri.substring(0, uri.length - 1);
+		if (uri == '?')
+			uri = window.location.href.split('?')[0];
+		return uri;
+	}
+	function find_child(node, selector) {
+		var children = node.querySelectorAll(selector);
+		if (children.length) return children[0];
+	}
+	function find_group(node) {
+		var parent = node.parentElement;
+		if (!parent) return;
+		if (parent.id == "frames") return node;
+		return find_group(parent);
+	}
+	function orig_save(e, attr, val) {
+		if (e.attributes["_orig_" + attr] != undefined) return;
+		if (e.attributes[attr] == undefined) return;
+		if (val == undefined) val = e.attributes[attr].value;
+		e.setAttribute("_orig_" + attr, val);
+	}
+	function orig_load(e, attr) {
+		if (e.attributes["_orig_"+attr] == undefined) return;
+		e.attributes[attr].value = e.attributes["_orig_" + attr].value;
+		e.removeAttribute("_orig_"+attr);
+	}
+	function g_to_text(e) {
+		var text = find_child(e, "title").firstChild.nodeValue;
+		return (text)
+	}
+	function g_to_func(e) {
+		var func = g_to_text(e);
+		// if there's any manipulation we want to do to the function
+		// name before it's searched, do it here before returning.
+		return (func);
+	}
+	function update_text(e) {
+		var r = find_child(e, "rect");
+		var t = find_child(e, "text");
+		var w = parseFloat(r.attributes.width.value) -3;
+		var txt = find_child(e, "title").textContent.replace(/\([^(]*\)$/,"");
+		t.attributes.x.value = parseFloat(r.attributes.x.value) + 3;
+
+		// Smaller than this size won't fit anything
+		if (w < 2 * 12 * 0.59) {
+			t.textContent = "";
+			return;
+		}
+
+		t.textContent = txt;
+		var sl = t.getSubStringLength(0, txt.length);
+		// check if only whitespace or if we can fit the entire string into width w
+		if (/^ *$/.test(txt) || sl < w)
+			return;
+
+		// this isn't perfect, but gives a good starting point
+		// and avoids calling getSubStringLength too often
+		var start = Math.floor((w/sl) * txt.length);
+		for (var x = start; x > 0; x = x-2) {
+			if (t.getSubStringLength(0, x + 2) <= w) {
+				t.textContent = txt.substring(0, x) + "..";
+				return;
+			}
+		}
+		t.textContent = "";
+	}
+
+	// zoom
+	function zoom_reset(e) {
+		if (e.attributes != undefined) {
+			orig_load(e, "x");
+			orig_load(e, "width");
+		}
+		if (e.childNodes == undefined) return;
+		for (var i = 0, c = e.childNodes; i < c.length; i++) {
+			zoom_reset(c[i]);
+		}
+	}
+	function zoom_child(e, x, ratio) {
+		if (e.attributes != undefined) {
+			if (e.attributes.x != undefined) {
+				orig_save(e, "x");
+				e.attributes.x.value = (parseFloat(e.attributes.x.value) - x - 10) * ratio + 10;
+				if (e.tagName == "text")
+					e.attributes.x.value = find_child(e.parentNode, "rect[x]").attributes.x.value + 3;
+			}
+			if (e.attributes.width != undefined) {
+				orig_save(e, "width");
+				e.attributes.width.value = parseFloat(e.attributes.width.value) * ratio;
+			}
+		}
+
+		if (e.childNodes == undefined) return;
+		for (var i = 0, c = e.childNodes; i < c.length; i++) {
+			zoom_child(c[i], x - 10, ratio);
+		}
+	}
+	function zoom_parent(e) {
+		if (e.attributes) {
+			if (e.attributes.x != undefined) {
+				orig_save(e, "x");
+				e.attributes.x.value = 10;
+			}
+			if (e.attributes.width != undefined) {
+				orig_save(e, "width");
+				e.attributes.width.value = parseInt(svg.width.baseVal.value) - (10 * 2);
+			}
+		}
+		if (e.childNodes == undefined) return;
+		for (var i = 0, c = e.childNodes; i < c.length; i++) {
+			zoom_parent(c[i]);
+		}
+	}
+	function zoom(node) {
+		var attr = find_child(node, "rect").attributes;
+		var width = parseFloat(attr.width.value);
+		var xmin = parseFloat(attr.x.value);
+		var xmax = parseFloat(xmin + width);
+		var ymin = parseFloat(attr.y.value);
+		var ratio = (svg.width.baseVal.value - 2 * 10) / width;
+
+		// XXX: Workaround for JavaScript float issues (fix me)
+		var fudge = 0.0001;
+
+		unzoombtn.classList.remove("hide");
+
+		var el = document.getElementById("frames").children;
+		for (var i = 0; i < el.length; i++) {
+			var e = el[i];
+			var a = find_child(e, "rect").attributes;
+			var ex = parseFloat(a.x.value);
+			var ew = parseFloat(a.width.value);
+			var upstack;
+			// Is it an ancestor
+			if (0 == 0) {
+				upstack = parseFloat(a.y.value) > ymin;
+			} else {
+				upstack = parseFloat(a.y.value) < ymin;
+			}
+			if (upstack) {
+				// Direct ancestor
+				if (ex <= xmin && (ex+ew+fudge) >= xmax) {
+					e.classList.add("parent");
+					zoom_parent(e);
+					update_text(e);
+				}
+				// not in current path
+				else
+					e.classList.add("hide");
+			}
+			// Children maybe
+			else {
+				// no common path
+				if (ex < xmin || ex + fudge >= xmax) {
+					e.classList.add("hide");
+				}
+				else {
+					zoom_child(e, xmin, ratio);
+					update_text(e);
+				}
+			}
+		}
+		search();
+	}
+	function unzoom(dont_update_text) {
+		unzoombtn.classList.add("hide");
+		var el = document.getElementById("frames").children;
+		for(var i = 0; i < el.length; i++) {
+			el[i].classList.remove("parent");
+			el[i].classList.remove("hide");
+			zoom_reset(el[i]);
+			if(!dont_update_text) update_text(el[i]);
+		}
+		search();
+	}
+	function clearzoom() {
+		unzoom();
+
+		// remove zoom state
+		var params = get_params();
+		if (params.x) delete params.x;
+		if (params.y) delete params.y;
+		history.replaceState(null, null, parse_params(params));
+	}
+
+	// search
+	function toggle_ignorecase() {
+		ignorecase = !ignorecase;
+		if (ignorecase) {
+			ignorecaseBtn.classList.add("show");
+		} else {
+			ignorecaseBtn.classList.remove("show");
+		}
+		reset_search();
+		search();
+	}
+	function reset_search() {
+		var el = document.querySelectorAll("#frames rect");
+		for (var i = 0; i < el.length; i++) {
+			orig_load(el[i], "fill")
+		}
+		var params = get_params();
+		delete params.s;
+		history.replaceState(null, null, parse_params(params));
+	}
+	function search_prompt() {
+		if (!searching) {
+			var term = prompt("Enter a search term (regexp " +
+			    "allowed, eg: ^ext4_)"
+			    + (ignorecase ? ", ignoring case" : "")
+			    + "\nPress Ctrl-i to toggle case sensitivity", "");
+			if (term != null) search(term);
+		} else {
+			reset_search();
+			searching = 0;
+			currentSearchTerm = null;
+			searchbtn.classList.remove("show");
+			searchbtn.firstChild.nodeValue = "Search"
+			matchedtxt.classList.add("hide");
+			matchedtxt.firstChild.nodeValue = ""
+		}
+	}
+	function search(term) {
+		if (term) currentSearchTerm = term;
+
+		var re = new RegExp(currentSearchTerm, ignorecase ? 'i' : '');
+		var el = document.getElementById("frames").children;
+		var matches = new Object();
+		var maxwidth = 0;
+		for (var i = 0; i < el.length; i++) {
+			var e = el[i];
+			var func = g_to_func(e);
+			var rect = find_child(e, "rect");
+			if (func == null || rect == null)
+				continue;
+
+			// Save max width. Only works as we have a root frame
+			var w = parseFloat(rect.attributes.width.value);
+			if (w > maxwidth)
+				maxwidth = w;
+
+			if (func.match(re)) {
+				// highlight
+				var x = parseFloat(rect.attributes.x.value);
+				orig_save(rect, "fill");
+				rect.attributes.fill.value = "rgb(230,0,230)";
+
+				// remember matches
+				if (matches[x] == undefined) {
+					matches[x] = w;
+				} else {
+					if (w > matches[x]) {
+						// overwrite with parent
+						matches[x] = w;
+					}
+				}
+				searching = 1;
+			}
+		}
+		if (!searching)
+			return;
+		var params = get_params();
+		params.s = currentSearchTerm;
+		history.replaceState(null, null, parse_params(params));
+
+		searchbtn.classList.add("show");
+		searchbtn.firstChild.nodeValue = "Reset Search";
+
+		// calculate percent matched, excluding vertical overlap
+		var count = 0;
+		var lastx = -1;
+		var lastw = 0;
+		var keys = Array();
+		for (k in matches) {
+			if (matches.hasOwnProperty(k))
+				keys.push(k);
+		}
+		// sort the matched frames by their x location
+		// ascending, then width descending
+		keys.sort(function(a, b){
+			return a - b;
+		});
+		// Step through frames saving only the biggest bottom-up frames
+		// thanks to the sort order. This relies on the tree property
+		// where children are always smaller than their parents.
+		var fudge = 0.0001;	// JavaScript floating point
+		for (var k in keys) {
+			var x = parseFloat(keys[k]);
+			var w = matches[keys[k]];
+			if (x >= lastx + lastw - fudge) {
+				count += w;
+				lastx = x;
+				lastw = w;
+			}
+		}
+		// display matched percent
+		matchedtxt.classList.remove("hide");
+		var pct = 100 * count / maxwidth;
+		if (pct != 100) pct = pct.toFixed(1)
+		matchedtxt.firstChild.nodeValue = "Matched: " + pct + "%";
+	}
+]]>
+</script>
+<rect x="0.0" y="0" width="1200.0" height="470.0" fill="url(#background)"  />
+<text id="title" x="600.00" y="24" >Flame Graph</text>
+<text id="details" x="10.00" y="453" > </text>
+<text id="unzoom" x="10.00" y="24" class="hide">Reset Zoom</text>
+<text id="search" x="1090.00" y="24" >Search</text>
+<text id="ignorecase" x="1174.00" y="24" >ic</text>
+<text id="matched" x="1090.00" y="453" > </text>
+<g id="frames">
+<g >
+<title>irqentry_exit_to_user_mode (505,050,500 samples, 0.05%)</title><rect x="1097.6" y="117" width="0.6" height="15.0" fill="rgb(254,229,54)" rx="2" ry="2" />
+<text  x="1100.62" y="127.5" ></text>
+</g>
+<g >
+<title>VM_Thread (4,060,606,020 samples, 0.43%)</title><rect x="1185.0" y="405" width="5.0" height="15.0" fill="rgb(220,73,17)" rx="2" ry="2" />
+<text  x="1187.97" y="415.5" ></text>
+</g>
+<g >
+<title>exit_to_user_mode_prepare (121,212,120 samples, 0.01%)</title><rect x="239.0" y="53" width="0.2" height="15.0" fill="rgb(228,108,25)" rx="2" ry="2" />
+<text  x="242.02" y="63.5" ></text>
+</g>
+<g >
+<title>asm_sysvec_apic_timer_interrupt (141,414,140 samples, 0.01%)</title><rect x="869.5" y="149" width="0.2" height="15.0" fill="rgb(232,127,30)" rx="2" ry="2" />
+<text  x="872.54" y="159.5" ></text>
+</g>
+<g >
+<title>sysvec_call_function_single (151,515,150 samples, 0.02%)</title><rect x="62.6" y="101" width="0.1" height="15.0" fill="rgb(221,78,18)" rx="2" ry="2" />
+<text  x="65.56" y="111.5" ></text>
+</g>
+<g >
+<title>asm_sysvec_call_function_single (90,909,090 samples, 0.01%)</title><rect x="1184.4" y="309" width="0.1" height="15.0" fill="rgb(234,136,32)" rx="2" ry="2" />
+<text  x="1187.42" y="319.5" ></text>
+</g>
+<g >
+<title>sysvec_call_function_single (80,808,080 samples, 0.01%)</title><rect x="1113.1" y="149" width="0.1" height="15.0" fill="rgb(221,78,18)" rx="2" ry="2" />
+<text  x="1116.11" y="159.5" ></text>
+</g>
+<g >
+<title>__x64_sys_sched_yield (535,353,530 samples, 0.06%)</title><rect x="1189.3" y="261" width="0.7" height="15.0" fill="rgb(209,18,4)" rx="2" ry="2" />
+<text  x="1192.34" y="271.5" ></text>
+</g>
+<g >
+<title>exit_to_user_mode_prepare (585,858,580 samples, 0.06%)</title><rect x="299.6" y="53" width="0.8" height="15.0" fill="rgb(228,108,25)" rx="2" ry="2" />
+<text  x="302.64" y="63.5" ></text>
+</g>
+<g >
+<title>start_thread (161,616,160 samples, 0.02%)</title><rect x="1184.8" y="389" width="0.2" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="1187.77" y="399.5" ></text>
+</g>
+<g >
+<title>Lspec/benchmarks/compress/Compressor:::clBlock (696,969,690 samples, 0.07%)</title><rect x="802.3" y="165" width="0.9" height="15.0" fill="rgb(247,193,46)" rx="2" ry="2" />
+<text  x="805.32" y="175.5" ></text>
+</g>
+<g >
+<title>_new_array_Java (90,909,090 samples, 0.01%)</title><rect x="1180.2" y="165" width="0.1" height="15.0" fill="rgb(239,158,37)" rx="2" ry="2" />
+<text  x="1183.16" y="175.5" ></text>
+</g>
+<g >
+<title>asm_sysvec_call_function_single (1,343,434,330 samples, 0.14%)</title><rect x="300.8" y="133" width="1.6" height="15.0" fill="rgb(234,136,32)" rx="2" ry="2" />
+<text  x="303.78" y="143.5" ></text>
+</g>
+<g >
+<title>irqentry_exit_to_user_mode (818,181,810 samples, 0.09%)</title><rect x="84.2" y="85" width="1.0" height="15.0" fill="rgb(254,229,54)" rx="2" ry="2" />
+<text  x="87.18" y="95.5" ></text>
+</g>
+<g >
+<title>[unknown] (151,515,150 samples, 0.02%)</title><rect x="1184.6" y="389" width="0.2" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="1187.59" y="399.5" ></text>
+</g>
+<g >
+<title>exit_to_user_mode_loop (121,212,120 samples, 0.01%)</title><rect x="239.0" y="37" width="0.2" height="15.0" fill="rgb(224,90,21)" rx="2" ry="2" />
+<text  x="242.02" y="47.5" ></text>
+</g>
+<g >
+<title>Interpreter (946,454,535,990 samples, 99.28%)</title><rect x="10.1" y="261" width="1171.4" height="15.0" fill="rgb(242,172,41)" rx="2" ry="2" />
+<text  x="13.10" y="271.5" >Interpreter</text>
+</g>
+<g >
+<title>__GI___futex_abstimed_wait_cancelable64 (131,313,130 samples, 0.01%)</title><rect x="1184.6" y="373" width="0.1" height="15.0" fill="rgb(215,48,11)" rx="2" ry="2" />
+<text  x="1187.59" y="383.5" ></text>
+</g>
+<g >
+<title>irqentry_exit_to_user_mode (373,737,370 samples, 0.04%)</title><rect x="83.6" y="69" width="0.4" height="15.0" fill="rgb(254,229,54)" rx="2" ry="2" />
+<text  x="86.56" y="79.5" ></text>
+</g>
+<g >
+<title>[libjvm.so] (636,363,630 samples, 0.07%)</title><rect x="1096.0" y="149" width="0.8" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="1098.97" y="159.5" ></text>
+</g>
+<g >
+<title>exit_to_user_mode_loop (3,090,909,060 samples, 0.32%)</title><rect x="1098.3" y="85" width="3.9" height="15.0" fill="rgb(224,90,21)" rx="2" ry="2" />
+<text  x="1101.33" y="95.5" ></text>
+</g>
+<g >
+<title>[libjvm.so] (2,232,323,210 samples, 0.23%)</title><rect x="1181.8" y="341" width="2.7" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="1184.79" y="351.5" ></text>
+</g>
+<g >
+<title>_new_array_Java (636,363,630 samples, 0.07%)</title><rect x="1096.0" y="165" width="0.8" height="15.0" fill="rgb(239,158,37)" rx="2" ry="2" />
+<text  x="1098.97" y="175.5" ></text>
+</g>
+<g >
+<title>__do_softirq (141,414,140 samples, 0.01%)</title><rect x="1093.6" y="85" width="0.1" height="15.0" fill="rgb(246,191,45)" rx="2" ry="2" />
+<text  x="1096.57" y="95.5" ></text>
+</g>
+<g >
+<title>[libjvm.so] (80,808,080 samples, 0.01%)</title><rect x="1184.8" y="309" width="0.1" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="1187.84" y="319.5" ></text>
+</g>
+<g >
+<title>[libjvm.so] (2,484,848,460 samples, 0.26%)</title><rect x="1185.0" y="325" width="3.1" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="1188.00" y="335.5" ></text>
+</g>
+<g >
+<title>irq_exit_rcu (80,808,080 samples, 0.01%)</title><rect x="869.5" y="117" width="0.1" height="15.0" fill="rgb(254,227,54)" rx="2" ry="2" />
+<text  x="872.54" y="127.5" ></text>
+</g>
+<g >
+<title>C2_CompilerThre (161,616,160 samples, 0.02%)</title><rect x="1181.6" y="405" width="0.2" height="15.0" fill="rgb(248,199,47)" rx="2" ry="2" />
+<text  x="1184.56" y="415.5" ></text>
+</g>
+<g >
+<title>[libjvm.so] (946,454,535,990 samples, 99.28%)</title><rect x="10.1" y="341" width="1171.4" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="13.10" y="351.5" >[libjvm.so]</text>
+</g>
+<g >
+<title>[libjvm.so] (191,919,190 samples, 0.02%)</title><rect x="1186.0" y="293" width="0.2" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="1189.01" y="303.5" ></text>
+</g>
+<g >
+<title>arrayof_jint_fill (141,414,140 samples, 0.01%)</title><rect x="1096.8" y="165" width="0.1" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="1099.76" y="175.5" ></text>
+</g>
+<g >
+<title>irqentry_exit (3,090,909,060 samples, 0.32%)</title><rect x="1098.3" y="133" width="3.9" height="15.0" fill="rgb(219,66,15)" rx="2" ry="2" />
+<text  x="1101.33" y="143.5" ></text>
+</g>
+<g >
+<title>Lspec/benchmarks/compress/Compressor:::output (5,232,323,180 samples, 0.55%)</title><rect x="56.3" y="133" width="6.4" height="15.0" fill="rgb(205,1,0)" rx="2" ry="2" />
+<text  x="59.27" y="143.5" ></text>
+</g>
+<g >
+<title>asm_sysvec_call_function_single (1,585,858,570 samples, 0.17%)</title><rect x="1094.0" y="149" width="1.9" height="15.0" fill="rgb(234,136,32)" rx="2" ry="2" />
+<text  x="1096.96" y="159.5" ></text>
+</g>
+<g >
+<title>sysvec_call_function_single (373,737,370 samples, 0.04%)</title><rect x="83.6" y="101" width="0.4" height="15.0" fill="rgb(221,78,18)" rx="2" ry="2" />
+<text  x="86.56" y="111.5" ></text>
+</g>
+<g >
+<title>smp_call_function_many_cond (838,383,830 samples, 0.09%)</title><rect x="1186.2" y="133" width="1.1" height="15.0" fill="rgb(220,71,17)" rx="2" ry="2" />
+<text  x="1189.25" y="143.5" ></text>
+</g>
+<g >
+<title>_new_array_Java (181,818,180 samples, 0.02%)</title><rect x="300.4" y="133" width="0.2" height="15.0" fill="rgb(239,158,37)" rx="2" ry="2" />
+<text  x="303.39" y="143.5" ></text>
+</g>
+<g >
+<title>do_syscall_64 (393,939,390 samples, 0.04%)</title><rect x="1187.6" y="277" width="0.5" height="15.0" fill="rgb(209,20,4)" rx="2" ry="2" />
+<text  x="1190.57" y="287.5" ></text>
+</g>
+<g >
+<title>Lspec/io/ValidityCheckOutputStream:::validityCheck2 (80,808,080 samples, 0.01%)</title><rect x="1181.4" y="197" width="0.1" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="1184.45" y="207.5" ></text>
+</g>
+<g >
+<title>exit_to_user_mode_loop (585,858,580 samples, 0.06%)</title><rect x="299.6" y="37" width="0.8" height="15.0" fill="rgb(224,90,21)" rx="2" ry="2" />
+<text  x="302.64" y="47.5" ></text>
+</g>
+<g >
+<title>do_mprotect_pkey (838,383,830 samples, 0.09%)</title><rect x="1186.2" y="213" width="1.1" height="15.0" fill="rgb(252,218,52)" rx="2" ry="2" />
+<text  x="1189.25" y="223.5" ></text>
+</g>
+<g >
+<title>Lspec/benchmarks/compress/Compressor:::output (54,252,524,710 samples, 5.69%)</title><rect x="803.2" y="165" width="67.1" height="15.0" fill="rgb(205,1,0)" rx="2" ry="2" />
+<text  x="806.18" y="175.5" >Lspec/b..</text>
+</g>
+<g >
+<title>irqentry_exit_to_user_mode (585,858,580 samples, 0.06%)</title><rect x="299.6" y="69" width="0.8" height="15.0" fill="rgb(254,229,54)" rx="2" ry="2" />
+<text  x="302.64" y="79.5" ></text>
+</g>
+<g >
+<title>do_syscall_64 (838,383,830 samples, 0.09%)</title><rect x="1186.2" y="261" width="1.1" height="15.0" fill="rgb(209,20,4)" rx="2" ry="2" />
+<text  x="1189.25" y="271.5" ></text>
+</g>
+<g >
+<title>irq_exit_rcu (141,414,140 samples, 0.01%)</title><rect x="1093.6" y="117" width="0.1" height="15.0" fill="rgb(254,227,54)" rx="2" ry="2" />
+<text  x="1096.57" y="127.5" ></text>
+</g>
+<g >
+<title>[libjvm.so] (946,454,535,990 samples, 99.28%)</title><rect x="10.1" y="357" width="1171.4" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="13.10" y="367.5" >[libjvm.so]</text>
+</g>
+<g >
+<title>updateBytesCRC32 (181,818,180 samples, 0.02%)</title><rect x="1181.2" y="181" width="0.2" height="15.0" fill="rgb(209,20,4)" rx="2" ry="2" />
+<text  x="1184.22" y="191.5" ></text>
+</g>
+<g >
+<title>irqentry_exit (1,303,030,290 samples, 0.14%)</title><rect x="300.8" y="101" width="1.6" height="15.0" fill="rgb(219,66,15)" rx="2" ry="2" />
+<text  x="303.83" y="111.5" ></text>
+</g>
+<g >
+<title>entry_SYSCALL_64_after_hwframe (80,808,080 samples, 0.01%)</title><rect x="1184.6" y="357" width="0.1" height="15.0" fill="rgb(218,63,15)" rx="2" ry="2" />
+<text  x="1187.65" y="367.5" ></text>
+</g>
+<g >
+<title>BenchmarkThread (946,535,344,070 samples, 99.28%)</title><rect x="10.0" y="405" width="1171.5" height="15.0" fill="rgb(228,108,25)" rx="2" ry="2" />
+<text  x="13.00" y="415.5" >BenchmarkThread</text>
+</g>
+<g >
+<title>entry_SYSCALL_64_after_hwframe (404,040,400 samples, 0.04%)</title><rect x="1187.6" y="293" width="0.5" height="15.0" fill="rgb(218,63,15)" rx="2" ry="2" />
+<text  x="1190.57" y="303.5" ></text>
+</g>
+<g >
+<title>__irq_exit_rcu (80,808,080 samples, 0.01%)</title><rect x="869.5" y="101" width="0.1" height="15.0" fill="rgb(227,101,24)" rx="2" ry="2" />
+<text  x="872.54" y="111.5" ></text>
+</g>
+<g >
+<title>call_stub (946,454,535,990 samples, 99.28%)</title><rect x="10.1" y="277" width="1171.4" height="15.0" fill="rgb(207,10,2)" rx="2" ry="2" />
+<text  x="13.10" y="287.5" >call_stub</text>
+</g>
+<g >
+<title>tlb_finish_mmu (838,383,830 samples, 0.09%)</title><rect x="1186.2" y="197" width="1.1" height="15.0" fill="rgb(251,212,50)" rx="2" ry="2" />
+<text  x="1189.25" y="207.5" ></text>
+</g>
+<g >
+<title>irq_exit_rcu (414,141,410 samples, 0.04%)</title><rect x="1097.1" y="133" width="0.5" height="15.0" fill="rgb(254,227,54)" rx="2" ry="2" />
+<text  x="1100.11" y="143.5" ></text>
+</g>
+<g >
+<title>[libjvm.so] (141,414,140 samples, 0.01%)</title><rect x="1181.6" y="245" width="0.1" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="1184.57" y="255.5" ></text>
+</g>
+<g >
+<title>[libjvm.so] (161,616,160 samples, 0.02%)</title><rect x="1181.6" y="373" width="0.2" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="1184.56" y="383.5" ></text>
+</g>
+<g >
+<title>Lspec/benchmarks/compress/Compress:::performAction (54,242,423,700 samples, 5.69%)</title><rect x="1113.3" y="181" width="67.1" height="15.0" fill="rgb(216,50,12)" rx="2" ry="2" />
+<text  x="1116.27" y="191.5" >Lspec/b..</text>
+</g>
+<g >
+<title>updateBytesCRC32 (484,848,480 samples, 0.05%)</title><rect x="86.5" y="133" width="0.6" height="15.0" fill="rgb(209,20,4)" rx="2" ry="2" />
+<text  x="89.46" y="143.5" ></text>
+</g>
+<g >
+<title>__irq_exit_rcu (141,414,140 samples, 0.01%)</title><rect x="1093.6" y="101" width="0.1" height="15.0" fill="rgb(227,101,24)" rx="2" ry="2" />
+<text  x="1096.57" y="111.5" ></text>
+</g>
+<g >
+<title>__x64_sys_mprotect (838,383,830 samples, 0.09%)</title><rect x="1186.2" y="229" width="1.1" height="15.0" fill="rgb(209,21,5)" rx="2" ry="2" />
+<text  x="1189.25" y="239.5" ></text>
+</g>
+<g >
+<title>irqentry_exit_to_user_mode (1,303,030,290 samples, 0.14%)</title><rect x="300.8" y="85" width="1.6" height="15.0" fill="rgb(254,229,54)" rx="2" ry="2" />
+<text  x="303.83" y="95.5" ></text>
+</g>
+<g >
+<title>exit_to_user_mode_prepare (3,090,909,060 samples, 0.32%)</title><rect x="1098.3" y="101" width="3.9" height="15.0" fill="rgb(228,108,25)" rx="2" ry="2" />
+<text  x="1101.33" y="111.5" ></text>
+</g>
+<g >
+<title>asm_common_interrupt (141,414,140 samples, 0.01%)</title><rect x="1096.9" y="165" width="0.2" height="15.0" fill="rgb(227,105,25)" rx="2" ry="2" />
+<text  x="1099.93" y="175.5" ></text>
+</g>
+<g >
+<title>sysvec_call_function_single (1,585,858,570 samples, 0.17%)</title><rect x="1094.0" y="133" width="1.9" height="15.0" fill="rgb(221,78,18)" rx="2" ry="2" />
+<text  x="1096.96" y="143.5" ></text>
+</g>
+<g >
+<title>[libjvm.so] (946,454,535,990 samples, 99.28%)</title><rect x="10.1" y="309" width="1171.4" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="13.10" y="319.5" >[libjvm.so]</text>
+</g>
+<g >
+<title>irqentry_exit (494,949,490 samples, 0.05%)</title><rect x="869.7" y="117" width="0.6" height="15.0" fill="rgb(219,66,15)" rx="2" ry="2" />
+<text  x="872.72" y="127.5" ></text>
+</g>
+<g >
+<title>Lspec/benchmarks/compress/Compress:::performAction (641,484,842,070 samples, 67.29%)</title><rect x="308.2" y="181" width="794.0" height="15.0" fill="rgb(216,50,12)" rx="2" ry="2" />
+<text  x="311.19" y="191.5" >Lspec/benchmarks/compress/Compress:::performAction</text>
+</g>
+<g >
+<title>[libjvm.so] (90,909,090 samples, 0.01%)</title><rect x="1180.2" y="149" width="0.1" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="1183.16" y="159.5" ></text>
+</g>
+<g >
+<title>asm_sysvec_call_function_single (373,737,370 samples, 0.04%)</title><rect x="83.6" y="117" width="0.4" height="15.0" fill="rgb(234,136,32)" rx="2" ry="2" />
+<text  x="86.56" y="127.5" ></text>
+</g>
+<g >
+<title>[libjvm.so] (191,919,190 samples, 0.02%)</title><rect x="1186.0" y="245" width="0.2" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="1189.01" y="255.5" ></text>
+</g>
+<g >
+<title>[libjvm.so] (181,818,180 samples, 0.02%)</title><rect x="300.4" y="117" width="0.2" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="303.39" y="127.5" ></text>
+</g>
+<g >
+<title>__mprotect (838,383,830 samples, 0.09%)</title><rect x="1186.2" y="293" width="1.1" height="15.0" fill="rgb(214,43,10)" rx="2" ry="2" />
+<text  x="1189.25" y="303.5" ></text>
+</g>
+<g >
+<title>__memset_avx2_unaligned_erms (151,515,150 samples, 0.02%)</title><rect x="300.4" y="101" width="0.2" height="15.0" fill="rgb(223,84,20)" rx="2" ry="2" />
+<text  x="303.43" y="111.5" ></text>
+</g>
+<g >
+<title>irqentry_exit (121,212,120 samples, 0.01%)</title><rect x="1097.0" y="133" width="0.1" height="15.0" fill="rgb(219,66,15)" rx="2" ry="2" />
+<text  x="1099.96" y="143.5" ></text>
+</g>
+<g >
+<title>[libjvm.so] (946,454,535,990 samples, 99.28%)</title><rect x="10.1" y="373" width="1171.4" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="13.10" y="383.5" >[libjvm.so]</text>
+</g>
+<g >
+<title>Lspec/benchmarks/compress/Harness:::runCompress (61,636,363,020 samples, 6.47%)</title><rect x="10.1" y="165" width="76.3" height="15.0" fill="rgb(229,114,27)" rx="2" ry="2" />
+<text  x="13.14" y="175.5" >Lspec/be..</text>
+</g>
+<g >
+<title>[libjvm.so] (4,040,404,000 samples, 0.42%)</title><rect x="1185.0" y="357" width="5.0" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="1188.00" y="367.5" ></text>
+</g>
+<g >
+<title>irqentry_exit_to_user_mode (3,090,909,060 samples, 0.32%)</title><rect x="1098.3" y="117" width="3.9" height="15.0" fill="rgb(254,229,54)" rx="2" ry="2" />
+<text  x="1101.33" y="127.5" ></text>
+</g>
+<g >
+<title>updateBytesCRC32 (2,252,525,230 samples, 0.24%)</title><rect x="305.4" y="165" width="2.8" height="15.0" fill="rgb(209,20,4)" rx="2" ry="2" />
+<text  x="308.40" y="175.5" ></text>
+</g>
+<g >
+<title>x64_sys_call (222,222,220 samples, 0.02%)</title><rect x="1187.8" y="261" width="0.3" height="15.0" fill="rgb(247,194,46)" rx="2" ry="2" />
+<text  x="1190.79" y="271.5" ></text>
+</g>
+<g >
+<title>[libjvm.so] (161,616,160 samples, 0.02%)</title><rect x="1181.6" y="309" width="0.2" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="1184.56" y="319.5" ></text>
+</g>
+<g >
+<title>[libjvm.so] (191,919,190 samples, 0.02%)</title><rect x="1186.0" y="277" width="0.2" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="1189.01" y="287.5" ></text>
+</g>
+<g >
+<title>irqentry_exit (585,858,580 samples, 0.06%)</title><rect x="299.6" y="85" width="0.8" height="15.0" fill="rgb(219,66,15)" rx="2" ry="2" />
+<text  x="302.64" y="95.5" ></text>
+</g>
+<g >
+<title>[libjvm.so] (80,808,080 samples, 0.01%)</title><rect x="1184.3" y="293" width="0.1" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="1187.29" y="303.5" ></text>
+</g>
+<g >
+<title>sysvec_call_function_single (3,161,616,130 samples, 0.33%)</title><rect x="1098.2" y="149" width="4.0" height="15.0" fill="rgb(221,78,18)" rx="2" ry="2" />
+<text  x="1101.25" y="159.5" ></text>
+</g>
+<g >
+<title>irqentry_exit (505,050,500 samples, 0.05%)</title><rect x="1097.6" y="133" width="0.6" height="15.0" fill="rgb(219,66,15)" rx="2" ry="2" />
+<text  x="1100.62" y="143.5" ></text>
+</g>
+<g >
+<title>[libjvm.so] (4,040,404,000 samples, 0.42%)</title><rect x="1185.0" y="341" width="5.0" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="1188.00" y="351.5" ></text>
+</g>
+<g >
+<title>exit_to_user_mode_prepare (494,949,490 samples, 0.05%)</title><rect x="869.7" y="85" width="0.6" height="15.0" fill="rgb(228,108,25)" rx="2" ry="2" />
+<text  x="872.72" y="95.5" ></text>
+</g>
+<g >
+<title>irqentry_exit (80,808,080 samples, 0.01%)</title><rect x="1113.1" y="133" width="0.1" height="15.0" fill="rgb(219,66,15)" rx="2" ry="2" />
+<text  x="1116.11" y="143.5" ></text>
+</g>
+<g >
+<title>[libjvm.so] (161,616,160 samples, 0.02%)</title><rect x="1184.8" y="373" width="0.2" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="1187.77" y="383.5" ></text>
+</g>
+<g >
+<title>asm_sysvec_apic_timer_interrupt (313,131,310 samples, 0.03%)</title><rect x="1093.6" y="149" width="0.4" height="15.0" fill="rgb(232,127,30)" rx="2" ry="2" />
+<text  x="1096.57" y="159.5" ></text>
+</g>
+<g >
+<title>irqentry_exit (1,585,858,570 samples, 0.17%)</title><rect x="1094.0" y="117" width="1.9" height="15.0" fill="rgb(219,66,15)" rx="2" ry="2" />
+<text  x="1096.96" y="127.5" ></text>
+</g>
+<g >
+<title>exit_to_user_mode_loop (1,585,858,570 samples, 0.17%)</title><rect x="1094.0" y="69" width="1.9" height="15.0" fill="rgb(224,90,21)" rx="2" ry="2" />
+<text  x="1096.96" y="79.5" ></text>
+</g>
+<g >
+<title>[libjvm.so] (151,515,150 samples, 0.02%)</title><rect x="1181.6" y="277" width="0.1" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="1184.56" y="287.5" ></text>
+</g>
+<g >
+<title>irqentry_exit_to_user_mode (494,949,490 samples, 0.05%)</title><rect x="869.7" y="101" width="0.6" height="15.0" fill="rgb(254,229,54)" rx="2" ry="2" />
+<text  x="872.72" y="111.5" ></text>
+</g>
+<g >
+<title>[libjvm.so] (2,242,424,220 samples, 0.24%)</title><rect x="1181.8" y="373" width="2.8" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="1184.79" y="383.5" ></text>
+</g>
+<g >
+<title>exit_to_user_mode_prepare (121,212,120 samples, 0.01%)</title><rect x="1097.0" y="101" width="0.1" height="15.0" fill="rgb(228,108,25)" rx="2" ry="2" />
+<text  x="1099.96" y="111.5" ></text>
+</g>
+<g >
+<title>__memset_avx2_unaligned_erms (545,454,540 samples, 0.06%)</title><rect x="1096.1" y="133" width="0.6" height="15.0" fill="rgb(223,84,20)" rx="2" ry="2" />
+<text  x="1099.07" y="143.5" ></text>
+</g>
+<g >
+<title>exit_to_user_mode_loop (818,181,810 samples, 0.09%)</title><rect x="84.2" y="53" width="1.0" height="15.0" fill="rgb(224,90,21)" rx="2" ry="2" />
+<text  x="87.18" y="63.5" ></text>
+</g>
+<g >
+<title>Interpreter (61,636,363,020 samples, 6.47%)</title><rect x="10.1" y="197" width="76.3" height="15.0" fill="rgb(242,172,41)" rx="2" ry="2" />
+<text  x="13.14" y="207.5" >Interpre..</text>
+</g>
+<g >
+<title>Lspec/benchmarks/compress/Harness:::runCompress (176,656,563,890 samples, 18.53%)</title><rect x="86.4" y="165" width="218.7" height="15.0" fill="rgb(229,114,27)" rx="2" ry="2" />
+<text  x="89.44" y="175.5" >Lspec/benchmarks/compress/Ha..</text>
+</g>
+<g >
+<title>exit_to_user_mode_prepare (1,303,030,290 samples, 0.14%)</title><rect x="300.8" y="69" width="1.6" height="15.0" fill="rgb(228,108,25)" rx="2" ry="2" />
+<text  x="303.83" y="79.5" ></text>
+</g>
+<g >
+<title>start_thread (161,616,160 samples, 0.02%)</title><rect x="1181.6" y="389" width="0.2" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="1184.56" y="399.5" ></text>
+</g>
+<g >
+<title>start_thread (2,242,424,220 samples, 0.24%)</title><rect x="1181.8" y="389" width="2.8" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="1184.79" y="399.5" ></text>
+</g>
+<g >
+<title>native_flush_tlb_multi (838,383,830 samples, 0.09%)</title><rect x="1186.2" y="165" width="1.1" height="15.0" fill="rgb(250,209,50)" rx="2" ry="2" />
+<text  x="1189.25" y="175.5" ></text>
+</g>
+<g >
+<title>flush_tlb_mm_range (838,383,830 samples, 0.09%)</title><rect x="1186.2" y="181" width="1.1" height="15.0" fill="rgb(215,48,11)" rx="2" ry="2" />
+<text  x="1189.25" y="191.5" ></text>
+</g>
+<g >
+<title>[libjvm.so] (101,010,100 samples, 0.01%)</title><rect x="1181.6" y="229" width="0.1" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="1184.62" y="239.5" ></text>
+</g>
+<g >
+<title>Lspec/benchmarks/compress/Compress:::performAction (60,363,635,760 samples, 6.33%)</title><rect x="10.5" y="149" width="74.7" height="15.0" fill="rgb(216,50,12)" rx="2" ry="2" />
+<text  x="13.48" y="159.5" >Lspec/be..</text>
+</g>
+<g >
+<title>Lspec/benchmarks/compress/Compress:::performAction (174,010,099,270 samples, 18.25%)</title><rect x="87.1" y="149" width="215.3" height="15.0" fill="rgb(216,50,12)" rx="2" ry="2" />
+<text  x="90.06" y="159.5" >Lspec/benchmarks/compress/Co..</text>
+</g>
+<g >
+<title>exit_to_user_mode_prepare (505,050,500 samples, 0.05%)</title><rect x="1097.6" y="101" width="0.6" height="15.0" fill="rgb(228,108,25)" rx="2" ry="2" />
+<text  x="1100.62" y="111.5" ></text>
+</g>
+<g >
+<title>[perf-5191.map] (884,777,768,930 samples, 92.81%)</title><rect x="86.4" y="229" width="1095.1" height="15.0" fill="rgb(217,59,14)" rx="2" ry="2" />
+<text  x="89.44" y="239.5" >[perf-5191.map]</text>
+</g>
+<g >
+<title>[libjvm.so] (101,010,100 samples, 0.01%)</title><rect x="1184.8" y="325" width="0.1" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="1187.81" y="335.5" ></text>
+</g>
+<g >
+<title>GC_task_thread# (2,262,626,240 samples, 0.24%)</title><rect x="1181.8" y="405" width="2.8" height="15.0" fill="rgb(225,96,22)" rx="2" ry="2" />
+<text  x="1184.76" y="415.5" ></text>
+</g>
+<g >
+<title>Lspec/benchmarks/compress/Decompressor:::decompress (17,191,919,020 samples, 1.80%)</title><rect x="62.7" y="133" width="21.3" height="15.0" fill="rgb(250,208,49)" rx="2" ry="2" />
+<text  x="65.75" y="143.5" >L..</text>
+</g>
+<g >
+<title>Lspec/benchmarks/compress/Compressor:::output (14,171,717,030 samples, 1.49%)</title><rect x="221.6" y="133" width="17.6" height="15.0" fill="rgb(205,1,0)" rx="2" ry="2" />
+<text  x="224.63" y="143.5" ></text>
+</g>
+<g >
+<title>[libjvm.so] (161,616,160 samples, 0.02%)</title><rect x="1184.8" y="357" width="0.2" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="1187.77" y="367.5" ></text>
+</g>
+<g >
+<title>irqentry_exit_to_user_mode (121,212,120 samples, 0.01%)</title><rect x="239.0" y="69" width="0.2" height="15.0" fill="rgb(254,229,54)" rx="2" ry="2" />
+<text  x="242.02" y="79.5" ></text>
+</g>
+<g >
+<title>irqentry_exit (90,909,090 samples, 0.01%)</title><rect x="1184.4" y="277" width="0.1" height="15.0" fill="rgb(219,66,15)" rx="2" ry="2" />
+<text  x="1187.42" y="287.5" ></text>
+</g>
+<g >
+<title>Interpreter (61,646,464,030 samples, 6.47%)</title><rect x="10.1" y="229" width="76.3" height="15.0" fill="rgb(242,172,41)" rx="2" ry="2" />
+<text  x="13.14" y="239.5" >Interpre..</text>
+</g>
+<g >
+<title>exit_to_user_mode_loop (373,737,370 samples, 0.04%)</title><rect x="83.6" y="37" width="0.4" height="15.0" fill="rgb(224,90,21)" rx="2" ry="2" />
+<text  x="86.56" y="47.5" ></text>
+</g>
+<g >
+<title>sysvec_apic_timer_interrupt (919,191,910 samples, 0.10%)</title><rect x="1097.1" y="149" width="1.1" height="15.0" fill="rgb(220,69,16)" rx="2" ry="2" />
+<text  x="1100.11" y="159.5" ></text>
+</g>
+<g >
+<title>[perf-5191.map] (80,808,080 samples, 0.01%)</title><rect x="1181.4" y="213" width="0.1" height="15.0" fill="rgb(217,59,14)" rx="2" ry="2" />
+<text  x="1184.45" y="223.5" ></text>
+</g>
+<g >
+<title>[libjvm.so] (161,616,160 samples, 0.02%)</title><rect x="1181.6" y="293" width="0.2" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="1184.56" y="303.5" ></text>
+</g>
+<g >
+<title>__x64_sys_sched_yield (222,222,220 samples, 0.02%)</title><rect x="1187.8" y="245" width="0.3" height="15.0" fill="rgb(209,18,4)" rx="2" ry="2" />
+<text  x="1190.79" y="255.5" ></text>
+</g>
+<g >
+<title>Interpreter (176,686,866,920 samples, 18.53%)</title><rect x="86.4" y="213" width="218.7" height="15.0" fill="rgb(242,172,41)" rx="2" ry="2" />
+<text  x="89.44" y="223.5" >Interpreter</text>
+</g>
+<g >
+<title>do_syscall_64 (1,050,505,040 samples, 0.11%)</title><rect x="1188.7" y="293" width="1.3" height="15.0" fill="rgb(209,20,4)" rx="2" ry="2" />
+<text  x="1191.70" y="303.5" ></text>
+</g>
+<g >
+<title>__irq_exit_rcu (414,141,410 samples, 0.04%)</title><rect x="1097.1" y="117" width="0.5" height="15.0" fill="rgb(227,101,24)" rx="2" ry="2" />
+<text  x="1100.11" y="127.5" ></text>
+</g>
+<g >
+<title>x64_sys_call (838,383,830 samples, 0.09%)</title><rect x="1186.2" y="245" width="1.1" height="15.0" fill="rgb(247,194,46)" rx="2" ry="2" />
+<text  x="1189.25" y="255.5" ></text>
+</g>
+<g >
+<title>all (953,363,626,830 samples, 100%)</title><rect x="10.0" y="421" width="1180.0" height="15.0" fill="rgb(213,39,9)" rx="2" ry="2" />
+<text  x="13.00" y="431.5" ></text>
+</g>
+<g >
+<title>[libjvm.so] (4,040,404,000 samples, 0.42%)</title><rect x="1185.0" y="373" width="5.0" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="1188.00" y="383.5" ></text>
+</g>
+<g >
+<title>irqentry_exit (121,212,120 samples, 0.01%)</title><rect x="239.0" y="85" width="0.2" height="15.0" fill="rgb(219,66,15)" rx="2" ry="2" />
+<text  x="242.02" y="95.5" ></text>
+</g>
+<g >
+<title>Interpreter (946,434,333,970 samples, 99.27%)</title><rect x="10.1" y="245" width="1171.4" height="15.0" fill="rgb(242,172,41)" rx="2" ry="2" />
+<text  x="13.13" y="255.5" >Interpreter</text>
+</g>
+<g >
+<title>Lspec/benchmarks/compress/Harness:::runCompress (652,888,882,360 samples, 68.48%)</title><rect x="305.2" y="197" width="808.1" height="15.0" fill="rgb(229,114,27)" rx="2" ry="2" />
+<text  x="308.18" y="207.5" >Lspec/benchmarks/compress/Harness:::runCompress</text>
+</g>
+<g >
+<title>__run_timers (151,515,150 samples, 0.02%)</title><rect x="1097.4" y="69" width="0.2" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="1100.42" y="79.5" ></text>
+</g>
+<g >
+<title>exit_to_user_mode_loop (80,808,080 samples, 0.01%)</title><rect x="1113.1" y="85" width="0.1" height="15.0" fill="rgb(224,90,21)" rx="2" ry="2" />
+<text  x="1116.11" y="95.5" ></text>
+</g>
+<g >
+<title>irqentry_exit (818,181,810 samples, 0.09%)</title><rect x="84.2" y="101" width="1.0" height="15.0" fill="rgb(219,66,15)" rx="2" ry="2" />
+<text  x="87.18" y="111.5" ></text>
+</g>
+<g >
+<title>common_interrupt (141,414,140 samples, 0.01%)</title><rect x="1096.9" y="149" width="0.2" height="15.0" fill="rgb(215,46,11)" rx="2" ry="2" />
+<text  x="1099.93" y="159.5" ></text>
+</g>
+<g >
+<title>[libjvm.so] (2,242,424,220 samples, 0.24%)</title><rect x="1181.8" y="357" width="2.8" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="1184.79" y="367.5" ></text>
+</g>
+<g >
+<title>exit_to_user_mode_prepare (818,181,810 samples, 0.09%)</title><rect x="84.2" y="69" width="1.0" height="15.0" fill="rgb(228,108,25)" rx="2" ry="2" />
+<text  x="87.18" y="79.5" ></text>
+</g>
+<g >
+<title>schedule (131,313,130 samples, 0.01%)</title><rect x="1098.0" y="69" width="0.2" height="15.0" fill="rgb(254,229,54)" rx="2" ry="2" />
+<text  x="1101.05" y="79.5" ></text>
+</g>
+<g >
+<title>Lspec/benchmarks/compress/Compressor:::output (2,121,212,100 samples, 0.22%)</title><rect x="302.4" y="149" width="2.7" height="15.0" fill="rgb(205,1,0)" rx="2" ry="2" />
+<text  x="305.44" y="159.5" ></text>
+</g>
+<g >
+<title>irqentry_exit (373,737,370 samples, 0.04%)</title><rect x="83.6" y="85" width="0.4" height="15.0" fill="rgb(219,66,15)" rx="2" ry="2" />
+<text  x="86.56" y="95.5" ></text>
+</g>
+<g >
+<title>updateBytesCRC32 (252,525,250 samples, 0.03%)</title><rect x="10.2" y="133" width="0.3" height="15.0" fill="rgb(209,20,4)" rx="2" ry="2" />
+<text  x="13.16" y="143.5" ></text>
+</g>
+<g >
+<title>sysvec_call_function_single (494,949,490 samples, 0.05%)</title><rect x="869.7" y="133" width="0.6" height="15.0" fill="rgb(221,78,18)" rx="2" ry="2" />
+<text  x="872.72" y="143.5" ></text>
+</g>
+<g >
+<title>Ljava/util/zip/CRC32:::update (252,525,250 samples, 0.03%)</title><rect x="10.2" y="149" width="0.3" height="15.0" fill="rgb(214,45,10)" rx="2" ry="2" />
+<text  x="13.16" y="159.5" ></text>
+</g>
+<g >
+<title>irqentry_exit_to_user_mode (171,717,170 samples, 0.02%)</title><rect x="1093.7" y="101" width="0.3" height="15.0" fill="rgb(254,229,54)" rx="2" ry="2" />
+<text  x="1096.75" y="111.5" ></text>
+</g>
+<g >
+<title>asm_sysvec_call_function_single (80,808,080 samples, 0.01%)</title><rect x="1113.1" y="165" width="0.1" height="15.0" fill="rgb(234,136,32)" rx="2" ry="2" />
+<text  x="1116.11" y="175.5" ></text>
+</g>
+<g >
+<title>schedule (111,111,110 samples, 0.01%)</title><rect x="1187.9" y="213" width="0.2" height="15.0" fill="rgb(254,229,54)" rx="2" ry="2" />
+<text  x="1190.92" y="223.5" ></text>
+</g>
+<g >
+<title>[libjvm.so] (171,717,170 samples, 0.02%)</title><rect x="1186.0" y="213" width="0.2" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="1189.04" y="223.5" ></text>
+</g>
+<g >
+<title>start_thread (946,454,535,990 samples, 99.28%)</title><rect x="10.1" y="389" width="1171.4" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="13.10" y="399.5" >start_thread</text>
+</g>
+<g >
+<title>exit_to_user_mode_loop (494,949,490 samples, 0.05%)</title><rect x="1097.6" y="85" width="0.6" height="15.0" fill="rgb(224,90,21)" rx="2" ry="2" />
+<text  x="1100.62" y="95.5" ></text>
+</g>
+<g >
+<title>do_sched_yield (222,222,220 samples, 0.02%)</title><rect x="1187.8" y="229" width="0.3" height="15.0" fill="rgb(214,43,10)" rx="2" ry="2" />
+<text  x="1190.79" y="239.5" ></text>
+</g>
+<g >
+<title>Lspec/benchmarks/compress/Compressor:::output (656,565,650 samples, 0.07%)</title><rect x="1180.4" y="181" width="0.8" height="15.0" fill="rgb(205,1,0)" rx="2" ry="2" />
+<text  x="1183.41" y="191.5" ></text>
+</g>
+<g >
+<title>do_syscall_64 (80,808,080 samples, 0.01%)</title><rect x="1184.6" y="341" width="0.1" height="15.0" fill="rgb(209,20,4)" rx="2" ry="2" />
+<text  x="1187.65" y="351.5" ></text>
+</g>
+<g >
+<title>exit_to_user_mode_loop (161,616,160 samples, 0.02%)</title><rect x="1093.8" y="69" width="0.2" height="15.0" fill="rgb(224,90,21)" rx="2" ry="2" />
+<text  x="1096.76" y="79.5" ></text>
+</g>
+<g >
+<title>exit_to_user_mode_loop (1,303,030,290 samples, 0.14%)</title><rect x="300.8" y="53" width="1.6" height="15.0" fill="rgb(224,90,21)" rx="2" ry="2" />
+<text  x="303.83" y="63.5" ></text>
+</g>
+<g >
+<title>irqentry_exit_to_user_mode (121,212,120 samples, 0.01%)</title><rect x="1097.0" y="117" width="0.1" height="15.0" fill="rgb(254,229,54)" rx="2" ry="2" />
+<text  x="1099.96" y="127.5" ></text>
+</g>
+<g >
+<title>__schedule (111,111,110 samples, 0.01%)</title><rect x="1187.9" y="197" width="0.2" height="15.0" fill="rgb(227,103,24)" rx="2" ry="2" />
+<text  x="1190.92" y="207.5" ></text>
+</g>
+<g >
+<title>Lspec/benchmarks/compress/Compressor:::output (8,919,191,830 samples, 0.94%)</title><rect x="1102.2" y="181" width="11.0" height="15.0" fill="rgb(205,1,0)" rx="2" ry="2" />
+<text  x="1105.17" y="191.5" ></text>
+</g>
+<g >
+<title>irqentry_exit_to_user_mode (80,808,080 samples, 0.01%)</title><rect x="1113.1" y="117" width="0.1" height="15.0" fill="rgb(254,229,54)" rx="2" ry="2" />
+<text  x="1116.11" y="127.5" ></text>
+</g>
+<g >
+<title>asm_sysvec_apic_timer_interrupt (919,191,910 samples, 0.10%)</title><rect x="1097.1" y="165" width="1.1" height="15.0" fill="rgb(232,127,30)" rx="2" ry="2" />
+<text  x="1100.11" y="175.5" ></text>
+</g>
+<g >
+<title>sysvec_apic_timer_interrupt (90,909,090 samples, 0.01%)</title><rect x="300.7" y="117" width="0.1" height="15.0" fill="rgb(220,69,16)" rx="2" ry="2" />
+<text  x="303.66" y="127.5" ></text>
+</g>
+<g >
+<title>sysvec_call_function_single (121,212,120 samples, 0.01%)</title><rect x="239.0" y="101" width="0.2" height="15.0" fill="rgb(221,78,18)" rx="2" ry="2" />
+<text  x="242.02" y="111.5" ></text>
+</g>
+<g >
+<title>Interpreter (61,636,363,020 samples, 6.47%)</title><rect x="10.1" y="181" width="76.3" height="15.0" fill="rgb(242,172,41)" rx="2" ry="2" />
+<text  x="13.14" y="191.5" >Interpre..</text>
+</g>
+<g >
+<title>sysvec_call_function_single (595,959,590 samples, 0.06%)</title><rect x="299.6" y="101" width="0.8" height="15.0" fill="rgb(221,78,18)" rx="2" ry="2" />
+<text  x="302.63" y="111.5" ></text>
+</g>
+<g >
+<title>sysvec_call_function_single (90,909,090 samples, 0.01%)</title><rect x="1184.4" y="293" width="0.1" height="15.0" fill="rgb(221,78,18)" rx="2" ry="2" />
+<text  x="1187.42" y="303.5" ></text>
+</g>
+<g >
+<title>exit_to_user_mode_prepare (373,737,370 samples, 0.04%)</title><rect x="83.6" y="53" width="0.4" height="15.0" fill="rgb(228,108,25)" rx="2" ry="2" />
+<text  x="86.56" y="63.5" ></text>
+</g>
+<g >
+<title>run_timer_softirq (151,515,150 samples, 0.02%)</title><rect x="1097.4" y="85" width="0.2" height="15.0" fill="rgb(249,206,49)" rx="2" ry="2" />
+<text  x="1100.42" y="95.5" ></text>
+</g>
+<g >
+<title>sysvec_apic_timer_interrupt (313,131,310 samples, 0.03%)</title><rect x="1093.6" y="133" width="0.4" height="15.0" fill="rgb(220,69,16)" rx="2" ry="2" />
+<text  x="1096.57" y="143.5" ></text>
+</g>
+<g >
+<title>[libjvm.so] (946,454,535,990 samples, 99.28%)</title><rect x="10.1" y="325" width="1171.4" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="13.10" y="335.5" >[libjvm.so]</text>
+</g>
+<g >
+<title>Lspec/benchmarks/compress/Decompressor:::decompress (49,444,443,950 samples, 5.19%)</title><rect x="239.2" y="133" width="61.2" height="15.0" fill="rgb(250,208,49)" rx="2" ry="2" />
+<text  x="242.17" y="143.5" >Lspec/..</text>
+</g>
+<g >
+<title>irqentry_exit_to_user_mode (151,515,150 samples, 0.02%)</title><rect x="62.6" y="69" width="0.1" height="15.0" fill="rgb(254,229,54)" rx="2" ry="2" />
+<text  x="65.56" y="79.5" ></text>
+</g>
+<g >
+<title>[libjvm.so] (1,080,808,070 samples, 0.11%)</title><rect x="1186.0" y="309" width="1.3" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="1188.96" y="319.5" ></text>
+</g>
+<g >
+<title>syscall_enter_from_user_mode (494,949,490 samples, 0.05%)</title><rect x="1188.7" y="277" width="0.6" height="15.0" fill="rgb(254,229,54)" rx="2" ry="2" />
+<text  x="1191.72" y="287.5" ></text>
+</g>
+<g >
+<title>exit_to_user_mode_loop (121,212,120 samples, 0.01%)</title><rect x="1097.0" y="85" width="0.1" height="15.0" fill="rgb(224,90,21)" rx="2" ry="2" />
+<text  x="1099.96" y="95.5" ></text>
+</g>
+<g >
+<title>Interpreter (176,656,563,890 samples, 18.53%)</title><rect x="86.4" y="197" width="218.7" height="15.0" fill="rgb(242,172,41)" rx="2" ry="2" />
+<text  x="89.44" y="207.5" >Interpreter</text>
+</g>
+<g >
+<title>exit_to_user_mode_prepare (90,909,090 samples, 0.01%)</title><rect x="1184.4" y="245" width="0.1" height="15.0" fill="rgb(228,108,25)" rx="2" ry="2" />
+<text  x="1187.42" y="255.5" ></text>
+</g>
+<g >
+<title>call_timer_fn (90,909,090 samples, 0.01%)</title><rect x="1097.5" y="53" width="0.1" height="15.0" fill="rgb(234,135,32)" rx="2" ry="2" />
+<text  x="1100.50" y="63.5" ></text>
+</g>
+<g >
+<title>exit_to_user_mode_prepare (1,585,858,570 samples, 0.17%)</title><rect x="1094.0" y="85" width="1.9" height="15.0" fill="rgb(228,108,25)" rx="2" ry="2" />
+<text  x="1096.96" y="95.5" ></text>
+</g>
+<g >
+<title>[libjvm.so] (2,222,222,200 samples, 0.23%)</title><rect x="1181.8" y="325" width="2.7" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="1184.79" y="335.5" ></text>
+</g>
+<g >
+<title>do_sched_yield (535,353,530 samples, 0.06%)</title><rect x="1189.3" y="245" width="0.7" height="15.0" fill="rgb(214,43,10)" rx="2" ry="2" />
+<text  x="1192.34" y="255.5" ></text>
+</g>
+<g >
+<title>[libjvm.so] (151,515,150 samples, 0.02%)</title><rect x="1181.6" y="261" width="0.1" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="1184.56" y="271.5" ></text>
+</g>
+<g >
+<title>Ljava/util/zip/CRC32:::update (484,848,480 samples, 0.05%)</title><rect x="86.5" y="149" width="0.6" height="15.0" fill="rgb(214,45,10)" rx="2" ry="2" />
+<text  x="89.46" y="159.5" ></text>
+</g>
+<g >
+<title>[libjvm.so] (946,454,535,990 samples, 99.28%)</title><rect x="10.1" y="293" width="1171.4" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="13.10" y="303.5" >[libjvm.so]</text>
+</g>
+<g >
+<title>Lspec/benchmarks/compress/Compressor:::output (999,999,990 samples, 0.10%)</title><rect x="85.2" y="149" width="1.2" height="15.0" fill="rgb(205,1,0)" rx="2" ry="2" />
+<text  x="88.19" y="159.5" ></text>
+</g>
+<g >
+<title>__do_softirq (414,141,410 samples, 0.04%)</title><rect x="1097.1" y="101" width="0.5" height="15.0" fill="rgb(246,191,45)" rx="2" ry="2" />
+<text  x="1100.11" y="111.5" ></text>
+</g>
+<g >
+<title>start_thread (4,040,404,000 samples, 0.42%)</title><rect x="1185.0" y="389" width="5.0" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="1188.00" y="399.5" ></text>
+</g>
+<g >
+<title>[libjvm.so] (161,616,160 samples, 0.02%)</title><rect x="1181.6" y="341" width="0.2" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="1184.56" y="351.5" ></text>
+</g>
+<g >
+<title>sysvec_call_function_single (1,343,434,330 samples, 0.14%)</title><rect x="300.8" y="117" width="1.6" height="15.0" fill="rgb(221,78,18)" rx="2" ry="2" />
+<text  x="303.78" y="127.5" ></text>
+</g>
+<g >
+<title>schedule (191,919,190 samples, 0.02%)</title><rect x="1189.8" y="229" width="0.2" height="15.0" fill="rgb(254,229,54)" rx="2" ry="2" />
+<text  x="1192.76" y="239.5" ></text>
+</g>
+<g >
+<title>sysvec_apic_timer_interrupt (141,414,140 samples, 0.01%)</title><rect x="869.5" y="133" width="0.2" height="15.0" fill="rgb(220,69,16)" rx="2" ry="2" />
+<text  x="872.54" y="143.5" ></text>
+</g>
+<g >
+<title>irqentry_exit (171,717,170 samples, 0.02%)</title><rect x="1093.7" y="117" width="0.3" height="15.0" fill="rgb(219,66,15)" rx="2" ry="2" />
+<text  x="1096.75" y="127.5" ></text>
+</g>
+<g >
+<title>[libjvm.so] (161,616,160 samples, 0.02%)</title><rect x="1184.8" y="341" width="0.2" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="1187.77" y="351.5" ></text>
+</g>
+<g >
+<title>exit_to_user_mode_prepare (171,717,170 samples, 0.02%)</title><rect x="1093.7" y="85" width="0.3" height="15.0" fill="rgb(228,108,25)" rx="2" ry="2" />
+<text  x="1096.75" y="95.5" ></text>
+</g>
+<g >
+<title>Lspec/benchmarks/compress/Compressor:::clBlock (212,121,210 samples, 0.02%)</title><rect x="221.4" y="133" width="0.2" height="15.0" fill="rgb(247,193,46)" rx="2" ry="2" />
+<text  x="224.36" y="143.5" ></text>
+</g>
+<g >
+<title>[libjvm.so] (191,919,190 samples, 0.02%)</title><rect x="1186.0" y="261" width="0.2" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="1189.01" y="271.5" ></text>
+</g>
+<g >
+<title>asm_sysvec_call_function_single (3,161,616,130 samples, 0.33%)</title><rect x="1098.2" y="165" width="4.0" height="15.0" fill="rgb(234,136,32)" rx="2" ry="2" />
+<text  x="1101.25" y="175.5" ></text>
+</g>
+<g >
+<title>entry_SYSCALL_64_after_hwframe (838,383,830 samples, 0.09%)</title><rect x="1186.2" y="277" width="1.1" height="15.0" fill="rgb(218,63,15)" rx="2" ry="2" />
+<text  x="1189.25" y="287.5" ></text>
+</g>
+<g >
+<title>__schedule (121,212,120 samples, 0.01%)</title><rect x="1098.1" y="53" width="0.1" height="15.0" fill="rgb(227,103,24)" rx="2" ry="2" />
+<text  x="1101.06" y="63.5" ></text>
+</g>
+<g >
+<title>asm_sysvec_call_function_single (595,959,590 samples, 0.06%)</title><rect x="299.6" y="117" width="0.8" height="15.0" fill="rgb(234,136,32)" rx="2" ry="2" />
+<text  x="302.63" y="127.5" ></text>
+</g>
+<g >
+<title>__sched_yield (606,060,600 samples, 0.06%)</title><rect x="1187.3" y="309" width="0.8" height="15.0" fill="rgb(213,40,9)" rx="2" ry="2" />
+<text  x="1190.32" y="319.5" ></text>
+</g>
+<g >
+<title>exit_to_user_mode_loop (494,949,490 samples, 0.05%)</title><rect x="869.7" y="69" width="0.6" height="15.0" fill="rgb(224,90,21)" rx="2" ry="2" />
+<text  x="872.72" y="79.5" ></text>
+</g>
+<g >
+<title>exit_to_user_mode_loop (151,515,150 samples, 0.02%)</title><rect x="62.6" y="37" width="0.1" height="15.0" fill="rgb(224,90,21)" rx="2" ry="2" />
+<text  x="65.56" y="47.5" ></text>
+</g>
+<g >
+<title>Interpreter (61,646,464,030 samples, 6.47%)</title><rect x="10.1" y="213" width="76.3" height="15.0" fill="rgb(242,172,41)" rx="2" ry="2" />
+<text  x="13.14" y="223.5" >Interpre..</text>
+</g>
+<g >
+<title>Lspec/benchmarks/compress/Decompressor:::decompress (182,262,624,440 samples, 19.12%)</title><rect x="870.3" y="165" width="225.6" height="15.0" fill="rgb(250,208,49)" rx="2" ry="2" />
+<text  x="873.33" y="175.5" >Lspec/benchmarks/compress/Dec..</text>
+</g>
+<g >
+<title>sysvec_call_function_single (828,282,820 samples, 0.09%)</title><rect x="84.2" y="117" width="1.0" height="15.0" fill="rgb(221,78,18)" rx="2" ry="2" />
+<text  x="87.16" y="127.5" ></text>
+</g>
+<g >
+<title>arrayof_jint_fill (212,121,210 samples, 0.02%)</title><rect x="221.4" y="117" width="0.2" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="224.36" y="127.5" ></text>
+</g>
+<g >
+<title>Lsun/nio/cs/UTF_8$Decoder:::decode (55,080,807,530 samples, 5.78%)</title><rect x="1113.3" y="197" width="68.1" height="15.0" fill="rgb(251,214,51)" rx="2" ry="2" />
+<text  x="1116.27" y="207.5" >Lsun/ni..</text>
+</g>
+<g >
+<title>[libjvm.so] (161,616,160 samples, 0.02%)</title><rect x="1181.6" y="357" width="0.2" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="1184.56" y="367.5" ></text>
+</g>
+<g >
+<title>syscall_enter_from_user_mode (151,515,150 samples, 0.02%)</title><rect x="1187.6" y="261" width="0.2" height="15.0" fill="rgb(254,229,54)" rx="2" ry="2" />
+<text  x="1190.60" y="271.5" ></text>
+</g>
+<g >
+<title>__schedule (191,919,190 samples, 0.02%)</title><rect x="1189.8" y="213" width="0.2" height="15.0" fill="rgb(227,103,24)" rx="2" ry="2" />
+<text  x="1192.76" y="223.5" ></text>
+</g>
+<g >
+<title>asm_sysvec_call_function_single (828,282,820 samples, 0.09%)</title><rect x="84.2" y="133" width="1.0" height="15.0" fill="rgb(234,136,32)" rx="2" ry="2" />
+<text  x="87.16" y="143.5" ></text>
+</g>
+<g >
+<title>entry_SYSCALL_64_after_hwframe (1,050,505,040 samples, 0.11%)</title><rect x="1188.7" y="309" width="1.3" height="15.0" fill="rgb(218,63,15)" rx="2" ry="2" />
+<text  x="1191.70" y="319.5" ></text>
+</g>
+<g >
+<title>on_each_cpu_cond_mask (838,383,830 samples, 0.09%)</title><rect x="1186.2" y="149" width="1.1" height="15.0" fill="rgb(243,178,42)" rx="2" ry="2" />
+<text  x="1189.25" y="159.5" ></text>
+</g>
+<g >
+<title>irqentry_exit_to_user_mode (1,585,858,570 samples, 0.17%)</title><rect x="1094.0" y="101" width="1.9" height="15.0" fill="rgb(254,229,54)" rx="2" ry="2" />
+<text  x="1096.96" y="111.5" ></text>
+</g>
+<g >
+<title>exit_to_user_mode_prepare (80,808,080 samples, 0.01%)</title><rect x="1113.1" y="101" width="0.1" height="15.0" fill="rgb(228,108,25)" rx="2" ry="2" />
+<text  x="1116.11" y="111.5" ></text>
+</g>
+<g >
+<title>irqentry_exit_to_user_mode (90,909,090 samples, 0.01%)</title><rect x="1184.4" y="261" width="0.1" height="15.0" fill="rgb(254,229,54)" rx="2" ry="2" />
+<text  x="1187.42" y="271.5" ></text>
+</g>
+<g >
+<title>arrayof_jint_fill (676,767,670 samples, 0.07%)</title><rect x="802.3" y="149" width="0.9" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="805.34" y="159.5" ></text>
+</g>
+<g >
+<title>exit_to_user_mode_loop (90,909,090 samples, 0.01%)</title><rect x="1184.4" y="229" width="0.1" height="15.0" fill="rgb(224,90,21)" rx="2" ry="2" />
+<text  x="1187.42" y="239.5" ></text>
+</g>
+<g >
+<title>Lspec/benchmarks/compress/Decompressor:::decompress (15,505,050,350 samples, 1.63%)</title><rect x="1161.0" y="165" width="19.1" height="15.0" fill="rgb(250,208,49)" rx="2" ry="2" />
+<text  x="1163.96" y="175.5" ></text>
+</g>
+<g >
+<title>__do_softirq (80,808,080 samples, 0.01%)</title><rect x="869.5" y="85" width="0.1" height="15.0" fill="rgb(246,191,45)" rx="2" ry="2" />
+<text  x="872.54" y="95.5" ></text>
+</g>
+<g >
+<title>[libjvm.so] (161,616,160 samples, 0.02%)</title><rect x="1181.6" y="325" width="0.2" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="1184.56" y="335.5" ></text>
+</g>
+<g >
+<title>asm_sysvec_call_function_single (121,212,120 samples, 0.01%)</title><rect x="239.0" y="117" width="0.2" height="15.0" fill="rgb(234,136,32)" rx="2" ry="2" />
+<text  x="242.02" y="127.5" ></text>
+</g>
+<g >
+<title>asm_sysvec_call_function_single (151,515,150 samples, 0.02%)</title><rect x="62.6" y="117" width="0.1" height="15.0" fill="rgb(234,136,32)" rx="2" ry="2" />
+<text  x="65.56" y="127.5" ></text>
+</g>
+<g >
+<title>irqentry_exit (151,515,150 samples, 0.02%)</title><rect x="62.6" y="85" width="0.1" height="15.0" fill="rgb(219,66,15)" rx="2" ry="2" />
+<text  x="65.56" y="95.5" ></text>
+</g>
+<g >
+<title>[libjvm.so] (121,212,120 samples, 0.01%)</title><rect x="1184.2" y="309" width="0.2" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="1187.24" y="319.5" ></text>
+</g>
+<g >
+<title>asm_sysvec_call_function_single (494,949,490 samples, 0.05%)</title><rect x="869.7" y="149" width="0.6" height="15.0" fill="rgb(234,136,32)" rx="2" ry="2" />
+<text  x="872.72" y="159.5" ></text>
+</g>
+<g >
+<title>asm_sysvec_apic_timer_interrupt (90,909,090 samples, 0.01%)</title><rect x="300.7" y="133" width="0.1" height="15.0" fill="rgb(232,127,30)" rx="2" ry="2" />
+<text  x="303.66" y="143.5" ></text>
+</g>
+<g >
+<title>VM_Periodic_Tas (313,131,310 samples, 0.03%)</title><rect x="1184.6" y="405" width="0.4" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="1187.59" y="415.5" ></text>
+</g>
+<g >
+<title>exit_to_user_mode_prepare (151,515,150 samples, 0.02%)</title><rect x="62.6" y="53" width="0.1" height="15.0" fill="rgb(228,108,25)" rx="2" ry="2" />
+<text  x="65.56" y="63.5" ></text>
+</g>
+<g >
+<title>Interpreter (176,656,563,890 samples, 18.53%)</title><rect x="86.4" y="181" width="218.7" height="15.0" fill="rgb(242,172,41)" rx="2" ry="2" />
+<text  x="89.44" y="191.5" >Interpreter</text>
+</g>
+<g >
+<title>x64_sys_call (535,353,530 samples, 0.06%)</title><rect x="1189.3" y="277" width="0.7" height="15.0" fill="rgb(247,194,46)" rx="2" ry="2" />
+<text  x="1192.34" y="287.5" ></text>
+</g>
+<g >
+<title>Ljava/util/zip/CRC32:::update (2,252,525,230 samples, 0.24%)</title><rect x="305.4" y="181" width="2.8" height="15.0" fill="rgb(214,45,10)" rx="2" ry="2" />
+<text  x="308.40" y="191.5" ></text>
+</g>
+<g >
+<title>Lspec/benchmarks/compress/Compressor:::output (4,242,424,200 samples, 0.44%)</title><rect x="1155.7" y="165" width="5.3" height="15.0" fill="rgb(205,1,0)" rx="2" ry="2" />
+<text  x="1158.71" y="175.5" ></text>
+</g>
+<g >
+<title>[libjvm.so] (191,919,190 samples, 0.02%)</title><rect x="1186.0" y="229" width="0.2" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="1189.01" y="239.5" ></text>
+</g>
+<g >
+<title>Ljava/util/HashMap:::put (707,989,891,910 samples, 74.26%)</title><rect x="305.2" y="213" width="876.2" height="15.0" fill="rgb(227,102,24)" rx="2" ry="2" />
+<text  x="308.15" y="223.5" >Ljava/util/HashMap:::put</text>
+</g>
+<g >
+<title>__sched_yield (1,545,454,530 samples, 0.16%)</title><rect x="1188.1" y="325" width="1.9" height="15.0" fill="rgb(213,40,9)" rx="2" ry="2" />
+<text  x="1191.09" y="335.5" ></text>
+</g>
+</g>
+</svg>

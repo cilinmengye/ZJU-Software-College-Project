@@ -1,0 +1,7 @@
+#!/usr/bin/bash
+
+command_control="/usr/lib/jvm/java-8-openjdk-amd64/bin/java -jar SPECjvm2008.jar -ikv -i 6 compress"
+eval $command_control
+cd ./results || exit 1
+mv SPECjvm2008.001/ validate.01/
+cd ..

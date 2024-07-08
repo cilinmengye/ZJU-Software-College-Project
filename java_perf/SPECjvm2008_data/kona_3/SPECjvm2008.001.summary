@@ -1,0 +1,10 @@
+Report:      SPECjvm2008 Base summary
+Result:      Noncompliant composite result: 163.72 ops/m
+HW Model:    n/a, n/a
+HW CPU:      n/a, n/a
+OS:          Linux
+JVM:         Tencent, OpenJDK 64-Bit Server VM, 25.412-b1 mixed mode, sharing
+JVM tuning:  n/a
+JVM startup:  
+Tester:      cilinmengye, n/a
+Run date:    Fri Jul 05 20:39:16 CST 2024
