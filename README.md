@@ -7,7 +7,7 @@ ZJU-Software-College-Project
 |-java_perf
 | |--SPECjvm2008_data # 保存着运行SPECjvm2008时产生的数据
 | |--perf # 保存着运行perf和FlameGraph产生的数据
-| |--script # 保存着代码和脚本
+| |--script # 保存着代码和脚本，以及生产的数据
 -
 ```
 
