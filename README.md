@@ -46,7 +46,7 @@ ZJU-Software-College-Project
 
 ![image-20240704171956138](README.assets/image-20240704171956138.png)
 
-![image-20240704213042949](README.assets\image-20240704213042949.png)
+![image-20240704213042949](README.assets/image-20240704213042949.png)
 
 
 
@@ -156,7 +156,7 @@ Install Folder:
 java -jar SPECjvm2008.jar -wt 5s -it 5s -bt 2 compress
 ```
 
-![image-20240704164656396](README.assets\image-20240704164656396.png)
+![image-20240704164656396](README.assets/image-20240704164656396.png)
 
 ### 在Linux中使用java和设置环境变量
 
@@ -197,7 +197,7 @@ jre = jvm + java核心类库
    OpenJDK 64-Bit Server VM (build 25.412-b08, mixed mode)
    ```
 
-   ![image-20240705165155836](README.assets\image-20240705165155836.png)
+   ![image-20240705165155836](README.assets/image-20240705165155836.png)
 
 3. [set java environment](https://www.cnblogs.com/FengZeng666/p/12580401.html)
 
@@ -358,7 +358,7 @@ java -jar SPECjvm2008.jar -wt 5s -it 5s -bt 2 compress
 - -it: 实际测试中每次迭代运行 5 秒。
 - -bt: 使用 2 个线程并行运行 `compress` 基准测试。
 
-![image-20240705104750358](README.assets\image-20240705104750358.png)
+![image-20240705104750358](README.assets/image-20240705104750358.png)
 
 ### 运行
 
@@ -416,7 +416,7 @@ XML 文件的写入位置由参数 的值控制`specjvm.result.dir`；默认值�
 
 使用基准测试目录下提供的`run-specjvm.sh`脚本以启动测试序列。
 
-![image-20240705104941851](README.assets\image-20240705104941851.png)
+![image-20240705104941851](README.assets/image-20240705104941851.png)
 
 #### Full Run
 
@@ -433,19 +433,19 @@ XML 文件的写入位置由参数 的值控制`specjvm.result.dir`；默认值�
 java -jar SPECjvm2008.jar -i console -ikv startup.helloworld  startup.compress startup.crypto.aes startup.crypto.rsa startup.crypto.signverify startup.mpegaudio startup.scimark.fft startup.scimark.lu startup.scimark.monte_carlo startup.scimark.sor startup.scimark.sparse startup.serial startup.sunflow startup.xml.validation compress crypto.aes crypto.rsa crypto.signverify derby mpegaudio scimark.fft.large scimark.lu.large scimark.sor.large scimark.sparse.large scimark.fft.small scimark.lu.small scimark.sor.small scimark.sparse.small scimark.monte_carlo serial sunflow xml.validation
 ```
 
-![image-20240705105712341](README.assets\image-20240705105712341.png)
+![image-20240705105712341](README.assets/image-20240705105712341.png)
 
-![image-20240705105727665](README.assets\image-20240705105727665.png)
+![image-20240705105727665](README.assets/image-20240705105727665.png)
 
-![image-20240705105823587](README.assets\image-20240705105823587.png)
+![image-20240705105823587](README.assets/image-20240705105823587.png)
 
-![image-20240705105856193](README.assets\image-20240705105856193.png)
+![image-20240705105856193](README.assets/image-20240705105856193.png)
 
-![image-20240705110331634](README.assets\image-20240705110331634.png)
+![image-20240705110331634](README.assets/image-20240705110331634.png)
 
-![image-20240705110939206](README.assets\image-20240705110939206.png)
+![image-20240705110939206](README.assets/image-20240705110939206.png)
 
-![image-20240705112305936](README.assets\image-20240705112305936.png)
+![image-20240705112305936](README.assets/image-20240705112305936.png)
 
 > 运行的Benchmark为derby
 
@@ -475,13 +475,13 @@ SPECJvm2008的性能指标是吞吐量，单位是ops/min（每分钟操作数)
 
 1. 程序的计算复杂度
 
-   ![image-20240705113925502](README.assets\image-20240705113925502.png)
+   ![image-20240705113925502](README.assets/image-20240705113925502.png)
 
    在单线程执行的情况下，测试程序中最简单的`startup.hellworld`得分最高
 
    对于其他在单线程下执行的测试程序，得分第二高的为`startup.crypto.rsa`
 
-   ![image-20240705114958560](README.assets\image-20240705114958560.png)
+   ![image-20240705114958560](README.assets/image-20240705114958560.png)
 
    但是`startup.hellworld`的得分是`startup.crypto.rsa`的2.5倍！
 
@@ -491,9 +491,9 @@ SPECJvm2008的性能指标是吞吐量，单位是ops/min（每分钟操作数)
 
    在多线程下多次迭代测试某一程序得分比在单线程下单次测试某一程序得分高的多
 
-   ![image-20240705120013888](README.assets\image-20240705120013888.png)
+   ![image-20240705120013888](README.assets/image-20240705120013888.png)
 
-   ![image-20240705120041581](README.assets\image-20240705120041581.png)
+   ![image-20240705120041581](README.assets/image-20240705120041581.png)
 
    如上图：
 
@@ -511,7 +511,7 @@ SPECJvm2008的性能指标是吞吐量，单位是ops/min（每分钟操作数)
 
 3. 是否进行了热身
 
-   ![image-20240705115723437](README.assets\image-20240705115723437.png)
+   ![image-20240705115723437](README.assets/image-20240705115723437.png)
 
    在经过热身后，热身后进行迭代程序的得分要比热身时得分要高一点
 
@@ -526,9 +526,9 @@ SPECJvm2008的性能指标是吞吐量，单位是ops/min（每分钟操作数)
    scimark.sparse.large    在规定时间内，多线程迭代测试稀疏矩阵乘积，使用32M大数据集，最后得出 ops/m
    ```
 
-   ![image-20240705121017825](README.assets\image-20240705121017825.png)
+   ![image-20240705121017825](README.assets/image-20240705121017825.png)
 
-   ![image-20240705121032519](README.assets\image-20240705121032519.png)
+   ![image-20240705121032519](README.assets/image-20240705121032519.png)
 
    ```
    scimark.fft.small   在规定时间内，多线程迭代测试快速傅立叶变换，使用512K小数据集，最后得出 ops/m
@@ -537,9 +537,9 @@ SPECJvm2008的性能指标是吞吐量，单位是ops/min（每分钟操作数)
    scimark.sparse.small    在规定时间内，多线程迭代测试稀疏矩阵乘积，使用512KB小数据集，最后得出 ops/m
    ```
 
-   ![image-20240705121106966](README.assets\image-20240705121106966.png)
+   ![image-20240705121106966](README.assets/image-20240705121106966.png)
 
-   ![image-20240705122715898](README.assets\image-20240705122715898.png)
+   ![image-20240705122715898](README.assets/image-20240705122715898.png)
 
 可以看到在小数据集上运行明显比在大数据集上运行得分更高
 
@@ -643,7 +643,7 @@ sudo update-alternatives --install /usr/bin/java java /usr/lib/jvm/dragonwell-8.
 sudo update-alternatives --install /usr/bin/javac javac /usr/lib/jvm/dragonwell-8.19.20/bin/javac 2
 ```
 
-![image-20240705152813932](README.assets\image-20240705152813932.png)
+![image-20240705152813932](README.assets/image-20240705152813932.png)
 
 <hr>
 
@@ -660,7 +660,7 @@ sudo update-alternatives --install /usr/bin/java java /usr/lib/jvm/TencentKona-8
 sudo update-alternatives --install /usr/bin/javac javac /usr/lib/jvm/TencentKona-8.0.18-412/bin/javac 2
 ```
 
-![image-20240705154142536](README.assets\image-20240705154142536.png)
+![image-20240705154142536](README.assets/image-20240705154142536.png)
 
 <hr>
 
@@ -677,7 +677,7 @@ sudo update-alternatives --install /usr/bin/java java /usr/lib/jvm/bisheng-jdk1.
 sudo update-alternatives --install /usr/bin/javac javac /usr/lib/jvm/bisheng-jdk1.8.0_412/bin/javac 2
 ```
 
-![image-20240705155505108](README.assets\image-20240705155505108.png)
+![image-20240705155505108](README.assets/image-20240705155505108.png)
 
 <hr>
 
@@ -718,7 +718,7 @@ workload：compress
 /usr/lib/jvm/bisheng-jdk1.8.0_412/bin/java -jar SPECjvm2008.jar -ikv compress
 ```
 
-![image-20240705170911674](README.assets\image-20240705170911674.png)
+![image-20240705170911674](README.assets/image-20240705170911674.png)
 
 > openjdk 
 >
@@ -726,7 +726,7 @@ workload：compress
 >
 > composite: 162.73ops/m
 
-![image-20240705180716507](README.assets\image-20240705180716507.png)
+![image-20240705180716507](README.assets/image-20240705180716507.png)
 
 > Dragonwell
 >
@@ -734,7 +734,7 @@ workload：compress
 >
 > composite: 152.97ops/m
 
-![image-20240705181548692](README.assets\image-20240705181548692.png)
+![image-20240705181548692](README.assets/image-20240705181548692.png)
 
 > Kona
 >
@@ -742,7 +742,7 @@ workload：compress
 >
 > composite: 156.60ops/m
 
-![image-20240705182443969](README.assets\image-20240705182443969.png)
+![image-20240705182443969](README.assets/image-20240705182443969.png)
 
 > Bisheng
 >
@@ -908,17 +908,17 @@ plt.grid(True)
 plt.show()
 ```
 
-![jvm_折线图](README.assets\jvm_折线图.png)
+![jvm_折线图](README.assets/jvm_折线图.png)
 
 初步感觉bisheng在测试中得分普遍较低
 
 其余jvm差别不大
 
-![jvm_均值图](README.assets\jvm_均值图.png)
+![jvm_均值图](README.assets/jvm_均值图.png)
 
 更加细致的均值和方差图：
 
-![jvm_方差图](README.assets\jvm_方差图.png)
+![jvm_方差图](README.assets/jvm_方差图.png)
 
 ## 显著性检验
 
@@ -993,7 +993,7 @@ plt.show()
 
 ```
 
-![jvm_配对t检验图](README.assets\jvm_配对t检验图.png)
+![jvm_配对t检验图](README.assets/jvm_配对t检验图.png)
 
 不同jvm之间的配对t检验p值均>0.05,则说明他们之间性能没用显著性的差异
 
@@ -1130,7 +1130,7 @@ print(anova_result)
 
     将实验组和对照组的得分进行统计假设检验来确定硬件对性能影响的差异是否具有统计显著性。
 
-   ![jvm_validate01](README.assets\jvm_validate01.png)
+   ![jvm_validate01](README.assets/jvm_validate01.png)
 
    ```
     p-value=0.6205599904060364
@@ -1424,13 +1424,13 @@ sudo perf script > out.perf
 xdg-open flamegraph.svg
 ```
 
-![image-20240708110756833](README.assets\image-20240708110756833.png)
+![image-20240708110756833](README.assets/image-20240708110756833.png)
 
-![image-20240708110829897](README.assets\image-20240708110829897.png)
+![image-20240708110829897](README.assets/image-20240708110829897.png)
 
 > vim out.perf
 
-![image-20240708111014037](README.assets\image-20240708111014037.png)
+![image-20240708111014037](README.assets/image-20240708111014037.png)
 
 > sudo perf report
 
@@ -1477,7 +1477,7 @@ xdg-open flamegraph.svg
 >
 > `-f` 是 `pgrep` 的一个选项，允许通过完整的命令行进行匹配搜索。
 
-![image-20240707171029965](README.assets\image-20240707171029965.png)
+![image-20240707171029965](README.assets/image-20240707171029965.png)
 
 用scimark.sparse.large试试
 
@@ -1508,7 +1508,7 @@ sudo perf script > ./second_sparse/out.perf
 # xdg-open flamegraph.svg
 ```
 
-![image-20240707170935000](README.assets\image-20240707170935000.png)
+![image-20240707170935000](README.assets/image-20240707170935000.png)
 
 ## Perf report
 
@@ -1518,13 +1518,13 @@ sudo perf script > ./second_sparse/out.perf
 
 ### compress
 
-![image-20240707192913850](README.assets\image-20240707192913850.png)
+![image-20240707192913850](README.assets/image-20240707192913850.png)
 
 ### sparse
 
 
 
-![image-20240707191329858](README.assets\image-20240707191329858.png)
+![image-20240707191329858](README.assets/image-20240707191329858.png)
 
 > Lspec/benchmarks/scimark/sparse/SparseCompRow;::matmult 86.36%
 >
@@ -1532,7 +1532,7 @@ sudo perf script > ./second_sparse/out.perf
 
 ### 导出到SQLite
 
-![image-20240707193336814](README.assets\image-20240707193336814.png)
+![image-20240707193336814](README.assets/image-20240707193336814.png)
 
 sparse经过perf script > out.perf的原始文本数据
 
@@ -1552,7 +1552,7 @@ sparse经过perf script > out.perf的原始文本数据
 sudo apt install sqlite3
 ```
 
-![image-20240707194434164](README.assets\image-20240707194434164.png)
+![image-20240707194434164](README.assets/image-20240707194434164.png)
 
 ```
 # 创建数据库
@@ -1621,11 +1621,11 @@ conn.commit()
 conn.close()
 ```
 
-![image-20240707211941643](README.assets\image-20240707211941643.png)
+![image-20240707211941643](README.assets/image-20240707211941643.png)
 
 通过我上述脚本对sparse的out.perf处理，我得到了总共2239608条函数调用
 
-![image-20240707212040278](README.assets\image-20240707212040278.png)
+![image-20240707212040278](README.assets/image-20240707212040278.png)
 
 通过函数出现次数进行排序，发现Interpreter出现最多，其基本上是由/tmp/perf-536.map这里产生的，难道这是因为我们使用pef检测造成的？
 
