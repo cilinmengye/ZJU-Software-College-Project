@@ -44,7 +44,7 @@ ZJU-Software-College-Project
 
 > `screenfetch` 是一个用于显示系统信息的 Bash 脚本，它以图形化方式在终端中显示系统信息和硬件统计数据。其输出包括操作系统版本、内核版本、桌面环境、CPU、内存、分辨率等，并带有与当前发行版相关的 ASCII 艺术标志。
 
-![image-20240704171956138](README.assets\image-20240704171956138.png)
+![image-20240704171956138](README.assets/image-20240704171956138.png)
 
 ![image-20240704213042949](README.assets\image-20240704213042949.png)
 
